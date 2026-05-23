@@ -29,13 +29,20 @@
   ],
   "author": "Krish Ojha",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrishOjha1810/promptguard-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KrishOjha1810/promptguard-mcp/issues"
+  },
+  "homepage": "https://github.com/KrishOjha1810/promptguard-mcp#readme",
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "js-tiktoken": "^1.0.21",
-    "zod": "^3.23.0"
+    "js-tiktoken": "^1.0.21"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
