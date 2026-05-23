@@ -70,10 +70,24 @@ const SUBSTITUTIONS: Substitution[] = [
     description: "removed hedge",
   },
   {
-    pattern: /\bthank(s| you)( in advance)?[!.]?\s*$/gi,
+    pattern: /\bthank(s| you)( so much)?( in advance)?[!.]?\s*$/gi,
     replacement: "",
     category: "filler_removal",
     description: "removed trailing thanks",
+  },
+  {
+    pattern:
+      /\bI('?d| would)( really| truly| greatly)? appreciate (it|that|your help)( with (this|that))?[,.]?\s*/gi,
+    replacement: "",
+    category: "filler_removal",
+    description: "removed appreciation filler",
+  },
+  {
+    pattern:
+      /\b(when you (get a chance|have (a )?(moment|time|second))|if you have a moment),?\s*/gi,
+    replacement: "",
+    category: "filler_removal",
+    description: "removed availability hedge",
   },
 
   // Verbose phrases tightened

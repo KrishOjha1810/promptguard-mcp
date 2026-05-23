@@ -167,38 +167,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     let summary: string;
     if (!result.shouldSuggest) {
-      summary =
-        result.reason ?? "Prompt looks good as-is. No changes recommended.";
+      summary = "Prompt looks good. No changes recommended.";
     } else {
-      const changeLines = result.optimizations
-        .map((o) => {
-          const beforeShown = o.before.trim();
-          return o.after.length === 0
-            ? `- ${o.description} (removed: \`${beforeShown}\`)`
-            : `- ${o.description}`;
-        })
-        .join("\n");
+      const removed = result.optimizations
+        .filter((o) => o.after.length === 0)
+        .map((o) => `"${o.before.trim()}"`);
+      const rewritten = result.optimizations
+        .filter((o) => o.after.length > 0)
+        .map((o) => `"${o.before.trim()}" to "${o.after.trim()}"`);
 
-      const structuralLines = result.structuralIssues
-        .map((i) => `- ${i.description} ${i.suggestion}`)
-        .join("\n");
+      const TIP_LABELS: Record<string, string> = {
+        missing_task_verb: "start with a direct verb (such as Write, Explain, Generate)",
+        missing_output_format: "specify the output format (such as bulleted list, JSON, or markdown)",
+      };
+      const tipParts = result.structuralIssues.map(
+        (i) => TIP_LABELS[i.type] ?? i.description,
+      );
 
       summary =
-        `Suggested optimization (${result.tokensSaved} tokens saved, ${result.percentSaved}% reduction)\n\n` +
-        `Original (${result.originalTokens} tokens):\n` +
-        "```\n" +
-        result.originalText +
-        "\n```\n\n" +
-        `Suggested (${result.optimizedTokens} tokens):\n` +
-        "```\n" +
-        result.optimizedText +
-        "\n```";
+        `Suggested rewrite (saved ${result.tokensSaved} tokens, ${result.percentSaved}% leaner):\n\n` +
+        `> ${result.optimizedText}`;
 
-      if (result.optimizations.length > 0) {
-        summary += `\n\nChanges:\n${changeLines}`;
+      if (removed.length > 0) {
+        summary += `\n\nRemoved: ${removed.join(", ")}.`;
       }
-      if (result.structuralIssues.length > 0) {
-        summary += `\n\nStructural observations:\n${structuralLines}`;
+      if (rewritten.length > 0) {
+        summary += `\nTightened: ${rewritten.join("; ")}.`;
+      }
+      if (tipParts.length > 0) {
+        summary += `\n\nTip: ${tipParts.join("; ")}.`;
       }
     }
 
