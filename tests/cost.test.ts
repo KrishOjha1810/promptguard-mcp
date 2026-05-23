@@ -23,6 +23,21 @@ describe("countTokens", () => {
     );
     expect(long).toBeGreaterThan(short);
   });
+
+  it("uses o200k_base for gpt-4o family, producing different counts than the default cl100k_base", () => {
+    // For most real text, o200k_base packs more characters per token than
+    // cl100k_base, so the gpt-4o count should differ from the default count.
+    const sample =
+      "The quick brown fox jumps over the lazy dog. The five boxing wizards jump quickly.";
+    const defaultCount = countTokens(sample);
+    const gpt4oCount = countTokens(sample, "gpt-4o");
+    expect(gpt4oCount).not.toBe(defaultCount);
+  });
+
+  it("uses cl100k_base for Claude models (same as the default)", () => {
+    const sample = "Hello, this is a test sentence for tokenization.";
+    expect(countTokens(sample, "claude-sonnet-4-6")).toBe(countTokens(sample));
+  });
 });
 
 describe("estimateCost", () => {
