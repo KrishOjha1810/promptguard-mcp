@@ -7,6 +7,11 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { scanText } from "./detectors/secrets.js";
+import {
+  estimateCost,
+  SUPPORTED_MODELS,
+  type SupportedModel,
+} from "./cost.js";
 
 const PROMPTGUARD_VERSION = "0.0.1";
 
@@ -52,6 +57,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
         },
         required: ["text"],
+      },
+    },
+    {
+      name: "estimate_cost",
+      description:
+        "Estimate the token count and dollar cost of a prompt for a specific model before sending it. Useful for previewing the cost of large prompts, bulk operations, or deciding which model to use.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "The prompt text to measure.",
+          },
+          model: {
+            type: "string",
+            enum: SUPPORTED_MODELS,
+            description: "The target model for the estimate.",
+          },
+          expectedOutputTokens: {
+            type: "number",
+            description:
+              "Optional override for expected output token count. When omitted, defaults to min(inputTokens, 1024).",
+          },
+        },
+        required: ["text", "model"],
       },
     },
   ],
@@ -106,6 +136,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         {
           type: "text",
           text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```",
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "estimate_cost") {
+    const args = (request.params.arguments ?? {}) as {
+      text?: string;
+      model?: SupportedModel;
+      expectedOutputTokens?: number;
+    };
+    if (typeof args.text !== "string") {
+      throw new Error("estimate_cost requires a 'text' string argument.");
+    }
+    if (!args.model || !SUPPORTED_MODELS.includes(args.model)) {
+      throw new Error(
+        `estimate_cost requires 'model' to be one of: ${SUPPORTED_MODELS.join(", ")}.`,
+      );
+    }
+
+    const result = estimateCost(args.text, args.model, args.expectedOutputTokens);
+    const approxNote = result.approximate
+      ? " (token count is an approximation for Claude models, exact for OpenAI)"
+      : "";
+
+    const summary =
+      `Model: ${result.model}\n` +
+      `Input tokens: ${result.inputTokens}${approxNote}\n` +
+      `Estimated output tokens: ${result.estimatedOutputTokens}\n` +
+      `Input cost: $${result.inputCostUsd.toFixed(6)}\n` +
+      `Estimated output cost: $${result.estimatedOutputCostUsd.toFixed(6)}\n` +
+      `Total estimated cost: $${result.totalEstimatedUsd.toFixed(6)}\n` +
+      `Pricing last updated: ${result.pricingLastUpdated}`;
+
+    return {
+      content: [
+        { type: "text", text: summary },
+        {
+          type: "text",
+          text: "```json\n" + JSON.stringify(result, null, 2) + "\n```",
         },
       ],
     };
