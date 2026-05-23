@@ -13,6 +13,7 @@ import {
   type SupportedModel,
 } from "./cost.js";
 import { optimizePrompt } from "./optimize.js";
+import { compressPrompt, type CompressionLevel } from "./compress.js";
 
 const PROMPTGUARD_VERSION = "0.0.1";
 
@@ -70,6 +71,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           text: {
             type: "string",
             description: "The prompt text to optimize.",
+          },
+        },
+        required: ["text"],
+      },
+    },
+    {
+      name: "compress_prompt",
+      description:
+        "Aggressively compress a prompt to save tokens. Strips filler, hedging, connector adverbs, and at the aggressive level rewrites question-style openers and drops articles. Use when the goal is fewer tokens (rate limits, cost), not clarity. For polite tightening with structural feedback, use optimize_prompt instead. Realistic savings are 10 to 25 percent depending on input and level; viral claims of 60 percent or more measure narrow output slices, not full sessions.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "The prompt text to compress.",
+          },
+          level: {
+            type: "string",
+            enum: ["light", "medium", "aggressive"],
+            description:
+              "How aggressive to be. Light: only obvious filler. Medium: also connector adverbs and meta-commentary. Aggressive: also drops articles after task verbs and restates question patterns. Defaults to medium.",
           },
         },
         required: ["text"],
@@ -198,6 +220,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         summary += `\n\nTip: ${tipParts.join("; ")}.`;
       }
     }
+
+    return {
+      content: [
+        { type: "text", text: summary },
+        {
+          type: "text",
+          text: "```json\n" + JSON.stringify(result, null, 2) + "\n```",
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "compress_prompt") {
+    const args = (request.params.arguments ?? {}) as {
+      text?: string;
+      level?: CompressionLevel;
+    };
+    if (typeof args.text !== "string") {
+      throw new Error("compress_prompt requires a 'text' string argument.");
+    }
+    const level = args.level ?? "medium";
+    if (!["light", "medium", "aggressive"].includes(level)) {
+      throw new Error(
+        "compress_prompt 'level' must be 'light', 'medium', or 'aggressive'.",
+      );
+    }
+
+    const result = compressPrompt(args.text, level);
+
+    const summary =
+      `Compressed (${result.level}): ${result.originalTokens} to ${result.compressedTokens} tokens, saved ${result.tokensSaved} (${result.percentSaved}% leaner).\n\n` +
+      `> ${result.compressedText}\n\n` +
+      `Note: ${result.warning}`;
 
     return {
       content: [
