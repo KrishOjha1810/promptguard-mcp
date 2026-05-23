@@ -12,6 +12,7 @@ import {
   SUPPORTED_MODELS,
   type SupportedModel,
 } from "./cost.js";
+import { optimizePrompt } from "./optimize.js";
 
 const PROMPTGUARD_VERSION = "0.0.1";
 
@@ -54,6 +55,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             enum: ["warn", "redact"],
             description:
               "Return raw matches (warn) or replace each finding with a placeholder (redact). Defaults to warn.",
+          },
+        },
+        required: ["text"],
+      },
+    },
+    {
+      name: "optimize_prompt",
+      description:
+        "Suggest a tightened version of a prompt by removing filler, verbose phrases, and hedging, and by flagging missing structure such as no task verb or no output format. Stays silent (shouldSuggest:false) on prompts that are already concise. Returns the original and the suggested rewrite side by side along with estimated token savings.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "The prompt text to optimize.",
           },
         },
         required: ["text"],
@@ -136,6 +152,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         {
           type: "text",
           text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```",
+        },
+      ],
+    };
+  }
+
+  if (request.params.name === "optimize_prompt") {
+    const args = (request.params.arguments ?? {}) as { text?: string };
+    if (typeof args.text !== "string") {
+      throw new Error("optimize_prompt requires a 'text' string argument.");
+    }
+
+    const result = optimizePrompt(args.text);
+
+    let summary: string;
+    if (!result.shouldSuggest) {
+      summary =
+        result.reason ?? "Prompt looks good as-is. No changes recommended.";
+    } else {
+      const changeLines = result.optimizations
+        .map((o) => {
+          const beforeShown = o.before.trim();
+          return o.after.length === 0
+            ? `- ${o.description} (removed: \`${beforeShown}\`)`
+            : `- ${o.description}`;
+        })
+        .join("\n");
+
+      const structuralLines = result.structuralIssues
+        .map((i) => `- ${i.description} ${i.suggestion}`)
+        .join("\n");
+
+      summary =
+        `Suggested optimization (${result.tokensSaved} tokens saved, ${result.percentSaved}% reduction)\n\n` +
+        `Original (${result.originalTokens} tokens):\n` +
+        "```\n" +
+        result.originalText +
+        "\n```\n\n" +
+        `Suggested (${result.optimizedTokens} tokens):\n` +
+        "```\n" +
+        result.optimizedText +
+        "\n```";
+
+      if (result.optimizations.length > 0) {
+        summary += `\n\nChanges:\n${changeLines}`;
+      }
+      if (result.structuralIssues.length > 0) {
+        summary += `\n\nStructural observations:\n${structuralLines}`;
+      }
+    }
+
+    return {
+      content: [
+        { type: "text", text: summary },
+        {
+          type: "text",
+          text: "```json\n" + JSON.stringify(result, null, 2) + "\n```",
         },
       ],
     };
