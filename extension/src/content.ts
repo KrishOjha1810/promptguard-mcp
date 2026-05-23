@@ -3,7 +3,7 @@ import type { Finding } from "../../src/types.js";
 import { PromptGuardOverlay } from "./overlay.js";
 import { UnderlineOverlay } from "./underline-overlay.js";
 
-const VERSION = "0.0.6";
+const VERSION = "0.0.7";
 const SCAN_DEBOUNCE_MS = 300;
 
 interface PromptGuardWindow extends Window {

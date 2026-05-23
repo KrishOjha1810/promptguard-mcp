@@ -4,7 +4,7 @@
 //   - storing user-customized patterns via chrome.storage
 //   - routing messages between content scripts and the popup
 
-const VERSION = "0.0.2";
+const VERSION = "0.0.7";
 
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(

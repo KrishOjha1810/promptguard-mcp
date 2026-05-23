@@ -16,7 +16,7 @@ import {
   type CompressionLevel,
 } from "../../src/compress.js";
 
-const VERSION = "0.0.5";
+const VERSION = "0.0.7";
 
 interface MessageResponse {
   ok: boolean;
