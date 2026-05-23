@@ -1,8 +1,9 @@
 import { scanText } from "../../src/detectors/secrets.js";
 import type { Finding } from "../../src/types.js";
 import { PromptGuardOverlay } from "./overlay.js";
+import { UnderlineOverlay } from "./underline-overlay.js";
 
-const VERSION = "0.0.5";
+const VERSION = "0.0.6";
 const SCAN_DEBOUNCE_MS = 300;
 
 interface PromptGuardWindow extends Window {
@@ -94,6 +95,7 @@ const signature = (f: Finding) => `${f.type}:${f.matched}`;
 let lastScanText = "";
 let lastInputEl: HTMLElement | null = null;
 let overlay: PromptGuardOverlay | null = null;
+let underlineOverlay: UnderlineOverlay | null = null;
 
 function scanCurrent(el: HTMLElement) {
   lastInputEl = el;
@@ -107,6 +109,7 @@ function scanCurrent(el: HTMLElement) {
       (f) => !ignoredSignatures.has(signature(f)),
     );
     if (overlay) overlay.setFindings(visible);
+    if (underlineOverlay) underlineOverlay.setFindings(text, visible);
 
     if (visible.length > 0) {
       console.group(
@@ -133,6 +136,7 @@ function attachToInput(el: HTMLElement) {
   pgEl.__promptguardAttached = true;
 
   el.addEventListener("input", () => debouncedScan(el));
+  if (underlineOverlay) underlineOverlay.attach(el);
   console.log(
     "%c[PromptGuard] attached to prompt input",
     "color: #2563eb;",
@@ -226,6 +230,7 @@ function init() {
       onIgnore: ignoreOne,
       onRedactAll: redactAll,
     });
+    underlineOverlay = new UnderlineOverlay();
   };
 
   if (document.body) {
