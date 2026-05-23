@@ -7,6 +7,12 @@ export type Rule = {
   severity: Severity;
   confidence: number;
   explanation: string;
+  /**
+   * Optional post-match validator. When present, a regex match is only emitted
+   * as a finding if this returns true. Used for example for Luhn validation on
+   * credit card numbers.
+   */
+  validator?: (matched: string) => boolean;
 };
 
 export type Finding = {

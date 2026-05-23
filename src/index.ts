@@ -6,7 +6,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { scanForSecrets } from "./detectors/secrets.js";
+import { scanText } from "./detectors/secrets.js";
 
 const PROMPTGUARD_VERSION = "0.0.1";
 
@@ -36,7 +36,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "scan_prompt",
       description:
-        "Scan a prompt for secrets, API keys, credentials, and other sensitive data before it is sent to the language model. Returns findings with location, severity, and a human-readable explanation, plus an optional redacted version of the input.",
+        "Scan a prompt for secrets, API keys, credentials, and personally identifiable information (emails, phone numbers, credit cards, SSNs) before it is sent to the language model. Returns findings with location, severity, and a human-readable explanation, plus an optional redacted version of the input.",
       inputSchema: {
         type: "object",
         properties: {
@@ -77,7 +77,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (typeof args.text !== "string") {
       throw new Error("scan_prompt requires a 'text' string argument.");
     }
-    const result = scanForSecrets(args.text);
+    const result = scanText(args.text);
     const mode = args.mode ?? "warn";
 
     const summary =
