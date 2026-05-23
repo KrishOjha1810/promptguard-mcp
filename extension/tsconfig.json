@@ -11,5 +11,12 @@
     "noEmit": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "../src/types.ts",
+    "../src/cost.ts",
+    "../src/compress.ts",
+    "../src/optimize.ts",
+    "../src/detectors/**/*"
+  ]
 }

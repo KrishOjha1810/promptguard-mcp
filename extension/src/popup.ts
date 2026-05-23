@@ -2,7 +2,7 @@
 // For v0.2.0 just reflects status and version. Cost estimator,
 // optimize, and compress buttons land in later v0.2.x releases.
 
-const VERSION = "0.0.1";
+const VERSION = "0.0.2";
 
 function setStatus(text: string) {
   const el = document.getElementById("status");
