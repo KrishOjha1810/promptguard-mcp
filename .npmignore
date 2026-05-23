@@ -1,0 +1,12 @@
+docs/
+src/
+tests/
+tsconfig.json
+.gitignore
+.github/
+*.test.ts
+*.test.js
+coverage/
+.editorconfig
+.vscode/
+.idea/

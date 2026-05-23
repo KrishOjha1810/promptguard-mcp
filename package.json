@@ -1,0 +1,45 @@
+{
+  "name": "promptguard-mcp",
+  "version": "0.0.1",
+  "description": "Local-first MCP server that scans developer prompts for secrets, PII, and cost before they hit the LLM.",
+  "type": "module",
+  "bin": {
+    "promptguard-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "prompt-safety",
+    "secret-scanning",
+    "developer-tools"
+  ],
+  "author": "Krish Ojha",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
