@@ -2,7 +2,7 @@
   "name": "promptguard",
   "displayName": "PromptGuard",
   "description": "Scan documents for AI-prompt secrets, API keys, and PII. Local, free, open source.",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "publisher": "promptguardapp",
   "engines": {
     "vscode": "^1.85.0"
@@ -31,6 +31,10 @@
         "title": "PromptGuard: Scan selection"
       },
       {
+        "command": "promptguard.redactAllInDocument",
+        "title": "PromptGuard: Redact all findings in current document"
+      },
+      {
         "command": "promptguard.clearDiagnostics",
         "title": "PromptGuard: Clear all PromptGuard markers"
       }
@@ -47,6 +51,11 @@
           "type": "boolean",
           "default": true,
           "description": "Re-scan a document each time it is saved."
+        },
+        "promptguard.scanOnEdit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Live scan as you type (300 ms debounced). Disable on very large files for performance."
         },
         "promptguard.showStatusBar": {
           "type": "boolean",
