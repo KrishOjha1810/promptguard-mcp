@@ -1,4 +1,4 @@
-import { countTokens } from "./cost.js";
+import { approxTokens, type TokenCounter } from "./internal-tokens.js";
 
 export type OptimizationType =
   | "filler_removal"
@@ -244,8 +244,12 @@ function cleanupSpacing(text: string, original: string): string {
   return result;
 }
 
-export function optimizePrompt(text: string): OptimizeResult {
-  const originalTokens = countTokens(text);
+export function optimizePrompt(
+  text: string,
+  options?: { tokenCounter?: TokenCounter },
+): OptimizeResult {
+  const count = options?.tokenCounter ?? approxTokens;
+  const originalTokens = count(text);
 
   if (originalTokens < 10) {
     return {
@@ -281,7 +285,7 @@ export function optimizePrompt(text: string): OptimizeResult {
 
   const structuralIssues = findStructuralIssues(text);
 
-  const optimizedTokens = countTokens(optimized);
+  const optimizedTokens = count(optimized);
   const tokensSaved = originalTokens - optimizedTokens;
   const percentSaved =
     originalTokens === 0

@@ -2,7 +2,7 @@ import { scanText } from "../../src/detectors/secrets.js";
 import type { Finding } from "../../src/types.js";
 import { PromptGuardOverlay } from "./overlay.js";
 
-const VERSION = "0.0.4";
+const VERSION = "0.0.5";
 const SCAN_DEBOUNCE_MS = 300;
 
 interface PromptGuardWindow extends Window {
@@ -186,6 +186,30 @@ function ignoreOne(finding: Finding) {
   ignoredSignatures.add(signature(finding));
   rescanNow();
 }
+
+// Listen for messages from the popup so it can read and modify the current
+// prompt text without having to share a process with the content script.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "get_text") {
+    if (!lastInputEl) {
+      sendResponse({ ok: false, error: "no prompt input detected" });
+      return true;
+    }
+    sendResponse({ ok: true, text: getText(lastInputEl) });
+    return true;
+  }
+  if (message?.type === "set_text" && typeof message.text === "string") {
+    if (!lastInputEl) {
+      sendResponse({ ok: false, error: "no prompt input detected" });
+      return true;
+    }
+    setInputText(lastInputEl, message.text);
+    setTimeout(rescanNow, 0);
+    sendResponse({ ok: true });
+    return true;
+  }
+  return false;
+});
 
 function init() {
   const win = window as PromptGuardWindow;

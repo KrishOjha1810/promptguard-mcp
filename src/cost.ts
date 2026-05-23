@@ -1,11 +1,12 @@
 import { getEncoding, type Tiktoken } from "js-tiktoken";
+import {
+  PRICING_USD_PER_M,
+  PRICING_LAST_UPDATED,
+  type SupportedModel,
+} from "./pricing.js";
 
-export type SupportedModel =
-  | "claude-opus-4-7"
-  | "claude-sonnet-4-6"
-  | "claude-haiku-4-5"
-  | "gpt-4o"
-  | "gpt-4o-mini";
+export type { SupportedModel } from "./pricing.js";
+export { SUPPORTED_MODELS } from "./pricing.js";
 
 type EncodingName = "cl100k_base" | "o200k_base";
 
@@ -28,23 +29,13 @@ export type CostEstimate = {
   estimatedOutputCostUsd: number;
   totalEstimatedUsd: number;
   /**
-   * True when the token count is an approximation. We use a cl100k tokenizer
-   * that is exact for OpenAI models and a close approximation for Claude.
+   * True when the token count is an approximation. cl100k_base is exact
+   * for older OpenAI models, and approximate for Claude (which does not
+   * expose its tokenizer publicly).
    */
   approximate: boolean;
   pricingLastUpdated: string;
 };
-
-// USD per 1,000,000 tokens. Update as model pricing changes.
-const PRICING: Record<SupportedModel, { input: number; output: number }> = {
-  "claude-opus-4-7": { input: 15, output: 75 },
-  "claude-sonnet-4-6": { input: 3, output: 15 },
-  "claude-haiku-4-5": { input: 0.8, output: 4 },
-  "gpt-4o": { input: 2.5, output: 10 },
-  "gpt-4o-mini": { input: 0.15, output: 0.6 },
-};
-
-const PRICING_LAST_UPDATED = "2026-05-23";
 
 const _encodings = new Map<EncodingName, Tiktoken>();
 function getEnc(name: EncodingName): Tiktoken {
@@ -56,9 +47,10 @@ function getEnc(name: EncodingName): Tiktoken {
 }
 
 /**
- * Count tokens for a piece of text. If a model is given, the tokenizer that
- * matches that model is used (exact for OpenAI, approximate for Claude). If
- * not given, cl100k_base is used as a sensible default for generic comparisons.
+ * Count tokens for a piece of text. If a model is given, the tokenizer
+ * that matches that model is used (exact for OpenAI, approximate for
+ * Claude). If not given, cl100k_base is used as a sensible default for
+ * generic comparisons.
  */
 export function countTokens(text: string, model?: SupportedModel): number {
   const encoding: EncodingName = model
@@ -78,7 +70,7 @@ export function estimateCost(
       ? expectedOutputTokens
       : Math.min(inputTokens, 1024);
 
-  const price = PRICING[model];
+  const price = PRICING_USD_PER_M[model];
   const inputCost = (inputTokens / 1_000_000) * price.input;
   const outputCost = (outputTokens / 1_000_000) * price.output;
 
@@ -99,10 +91,5 @@ function round(n: number, decimals: number): number {
   return Math.round(n * factor) / factor;
 }
 
-export const SUPPORTED_MODELS: SupportedModel[] = [
-  "claude-opus-4-7",
-  "claude-sonnet-4-6",
-  "claude-haiku-4-5",
-  "gpt-4o",
-  "gpt-4o-mini",
-];
+// Re-export so consumers do not need to know that pricing lives elsewhere.
+export { PRICING_LAST_UPDATED } from "./pricing.js";

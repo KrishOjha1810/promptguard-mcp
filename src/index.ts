@@ -9,6 +9,7 @@ import {
 import { scanText } from "./detectors/secrets.js";
 import {
   estimateCost,
+  countTokens,
   SUPPORTED_MODELS,
   type SupportedModel,
 } from "./cost.js";
@@ -185,7 +186,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       throw new Error("optimize_prompt requires a 'text' string argument.");
     }
 
-    const result = optimizePrompt(args.text);
+    const result = optimizePrompt(args.text, { tokenCounter: countTokens });
 
     let summary: string;
     if (!result.shouldSuggest) {
@@ -247,7 +248,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       );
     }
 
-    const result = compressPrompt(args.text, level);
+    const result = compressPrompt(args.text, level, {
+      tokenCounter: countTokens,
+    });
 
     const summary =
       `Compressed (${result.level}): ${result.originalTokens} to ${result.compressedTokens} tokens, saved ${result.tokensSaved} (${result.percentSaved}% leaner).\n\n` +

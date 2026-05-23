@@ -6,58 +6,250 @@
     <style>
       :root {
         color-scheme: light dark;
+        --pg-bg: #ffffff;
+        --pg-fg: #111827;
+        --pg-muted: #6b7280;
+        --pg-border: #e5e7eb;
+        --pg-card-bg: #f9fafb;
+        --pg-btn-bg: #ffffff;
+        --pg-btn-border: #d1d5db;
+        --pg-btn-hover-bg: #f3f4f6;
+        --pg-btn-primary-bg: #111827;
+        --pg-btn-primary-fg: #ffffff;
+        --pg-btn-primary-hover-bg: #374151;
+        --pg-input-bg: #ffffff;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       }
-      body {
-        width: 280px;
-        margin: 0;
-        padding: 16px;
-        background: #ffffff;
-        color: #1a1a1a;
-      }
       @media (prefers-color-scheme: dark) {
-        body {
-          background: #1e1e1e;
-          color: #eaeaea;
+        :root {
+          --pg-bg: #1f2937;
+          --pg-fg: #f9fafb;
+          --pg-muted: #9ca3af;
+          --pg-border: #374151;
+          --pg-card-bg: #111827;
+          --pg-btn-bg: #374151;
+          --pg-btn-border: #4b5563;
+          --pg-btn-hover-bg: #4b5563;
+          --pg-btn-primary-bg: #f9fafb;
+          --pg-btn-primary-fg: #111827;
+          --pg-btn-primary-hover-bg: #e5e7eb;
+          --pg-input-bg: #111827;
         }
       }
-      h1 {
-        margin: 0 0 4px 0;
-        font-size: 18px;
-        font-weight: 600;
-      }
-      .sub {
-        margin: 0 0 12px 0;
-        font-size: 12px;
-        opacity: 0.6;
-      }
-      .status {
+
+      * { box-sizing: border-box; }
+      body {
+        width: 360px;
+        margin: 0;
+        padding: 0;
+        background: var(--pg-bg);
+        color: var(--pg-fg);
         font-size: 13px;
-        line-height: 1.4;
-        padding: 10px;
-        border-radius: 6px;
-        background: rgba(0, 128, 0, 0.08);
-        border: 1px solid rgba(0, 128, 0, 0.25);
+        line-height: 1.45;
       }
-      .footer {
-        margin-top: 12px;
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px 10px 16px;
+        border-bottom: 1px solid var(--pg-border);
+      }
+      .title { display: flex; align-items: center; gap: 8px; }
+      .title svg { width: 16px; height: 16px; opacity: 0.85; }
+      .title h1 {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .version { font-size: 11px; color: var(--pg-muted); }
+
+      section {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--pg-border);
+      }
+      section:last-of-type { border-bottom: none; }
+      h2 {
         font-size: 11px;
-        opacity: 0.5;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--pg-muted);
+        margin: 0 0 10px 0;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+      .row:last-child { margin-bottom: 0; }
+      .row .label { color: var(--pg-muted); }
+      .row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+      .row .value.big { font-size: 16px; }
+
+      label {
+        display: block;
+        font-size: 11px;
+        color: var(--pg-muted);
+        margin-bottom: 4px;
+      }
+      select {
+        width: 100%;
+        padding: 6px 8px;
+        font-size: 12px;
+        border-radius: 6px;
+        border: 1px solid var(--pg-border);
+        background: var(--pg-input-bg);
+        color: var(--pg-fg);
+        font-family: inherit;
+        margin-bottom: 10px;
+        cursor: pointer;
+      }
+
+      .btn {
+        background: var(--pg-btn-bg);
+        color: var(--pg-fg);
+        border: 1px solid var(--pg-btn-border);
+        border-radius: 7px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        font-family: inherit;
+        width: 100%;
+        transition: background 100ms ease, border-color 100ms ease;
+      }
+      .btn:hover { background: var(--pg-btn-hover-bg); }
+      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .btn.primary {
+        background: var(--pg-btn-primary-bg);
+        color: var(--pg-btn-primary-fg);
+        border-color: var(--pg-btn-primary-bg);
+      }
+      .btn.primary:hover { background: var(--pg-btn-primary-hover-bg); }
+
+      .result {
+        margin-top: 10px;
+        background: var(--pg-card-bg);
+        border: 1px solid var(--pg-border);
+        border-radius: 7px;
+        padding: 10px;
+      }
+      .result-text {
+        max-height: 110px;
+        overflow-y: auto;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin-bottom: 8px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+      .result-meta {
+        font-size: 11px;
+        color: var(--pg-muted);
+        margin-bottom: 8px;
+      }
+      .result-meta strong { color: var(--pg-fg); }
+      .result .btn { font-size: 11px; padding: 5px 10px; }
+
+      .empty {
         text-align: center;
+        padding: 16px 12px;
+        color: var(--pg-muted);
+        font-size: 12px;
       }
-      a {
+      .hidden { display: none; }
+
+      footer {
+        padding: 10px 16px;
+        text-align: center;
+        font-size: 11px;
+        color: var(--pg-muted);
+        border-top: 1px solid var(--pg-border);
+      }
+      footer a {
         color: inherit;
+        text-decoration: none;
       }
+      footer a:hover { text-decoration: underline; }
     </style>
   </head>
   <body>
-    <h1>PromptGuard</h1>
-    <p class="sub" id="version">v0.0.1</p>
-    <div class="status" id="status">Loading...</div>
-    <p class="footer">
-      Detection arrives in v0.2.1. Source:
-      <a href="https://github.com/KrishOjha1810/promptguard-mcp" target="_blank">GitHub</a>
-    </p>
+    <header>
+      <div class="title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2 L3 6 V11 C3 16.5 7 21 12 22 C17 21 21 16.5 21 11 V6 L12 2 Z" />
+        </svg>
+        <h1>PromptGuard</h1>
+      </div>
+      <span class="version" id="version">v0.0.5</span>
+    </header>
+
+    <div id="not-supported" class="hidden">
+      <div class="empty">
+        PromptGuard runs on claude.ai and chatgpt.com.<br />
+        Open one of those tabs and click the icon again.
+      </div>
+    </div>
+
+    <div id="content">
+      <section id="cost-section">
+        <h2>Cost estimate</h2>
+        <label for="model">Model</label>
+        <select id="model">
+          <option value="claude-opus-4-7">Claude Opus 4.7</option>
+          <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
+          <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="gpt-4o-mini">GPT-4o-mini</option>
+        </select>
+        <div class="row">
+          <span class="label">Input tokens</span>
+          <span class="value" id="input-tokens">0</span>
+        </div>
+        <div class="row">
+          <span class="label">Total estimated cost</span>
+          <span class="value big" id="cost">$0.00</span>
+        </div>
+      </section>
+
+      <section id="optimize-section">
+        <h2>Optimize prompt</h2>
+        <button class="btn primary" id="optimize-btn">Suggest rewrite</button>
+        <div class="result hidden" id="optimize-result">
+          <div class="result-text" id="optimize-text"></div>
+          <div class="result-meta" id="optimize-meta"></div>
+          <button class="btn primary" id="optimize-apply">Apply to prompt</button>
+        </div>
+      </section>
+
+      <section id="compress-section">
+        <h2>Compress prompt</h2>
+        <label for="compress-level">Level</label>
+        <select id="compress-level">
+          <option value="light">Light, conservative</option>
+          <option value="medium" selected>Medium, balanced</option>
+          <option value="aggressive">Aggressive, max savings</option>
+        </select>
+        <button class="btn primary" id="compress-btn">Compress</button>
+        <div class="result hidden" id="compress-result">
+          <div class="result-text" id="compress-text"></div>
+          <div class="result-meta" id="compress-meta"></div>
+          <button class="btn primary" id="compress-apply">Apply to prompt</button>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <a href="https://github.com/KrishOjha1810/promptguard-mcp" target="_blank" rel="noopener">View on GitHub</a>
+    </footer>
+
     <script src="dist/popup.js"></script>
   </body>
 </html>
