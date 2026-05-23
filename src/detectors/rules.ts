@@ -103,6 +103,15 @@ export const SECRET_RULES: Rule[] = [
       "Google API key. Used for Google Cloud and Google Workspace APIs.",
   },
   {
+    id: "npm_access_token",
+    name: "npm Access Token",
+    pattern: /\bnpm_[A-Za-z0-9]{36}\b/g,
+    severity: "critical",
+    confidence: 0.99,
+    explanation:
+      "npm access token detected. Grants publish or modify rights to packages owned by the user, including any 'bypass 2FA' Automation tokens.",
+  },
+  {
     id: "pem_private_key",
     name: "PEM-encoded Private Key",
     pattern: /-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----/g,

@@ -11,6 +11,7 @@ const FAKE = {
   stripeLive: "sk_live" + "_EXAMPLEFAKETESTKEY000000",
   googleApi: "AIza" + "EXAMPLEFAKETESTKEY00000000000000000",
   pemHeader: "-----BEGIN RSA PRIVATE KEY-----",
+  npmToken: "npm" + "_EXAMPLEFAKETESTKEYDONOTUSE0000000000",
 };
 
 describe("scanForSecrets", () => {
@@ -49,6 +50,16 @@ describe("scanForSecrets", () => {
   it("detects a Google API key", () => {
     const result = scanForSecrets(`GOOGLE_API_KEY=${FAKE.googleApi}`);
     expect(result.findings.some((f) => f.type === "google_api_key")).toBe(true);
+  });
+
+  it("detects an npm access token", () => {
+    const result = scanForSecrets(`NPM_TOKEN=${FAKE.npmToken}`);
+    expect(result.findings.some((f) => f.type === "npm_access_token")).toBe(
+      true,
+    );
+    expect(
+      result.findings.find((f) => f.type === "npm_access_token")?.severity,
+    ).toBe("critical");
   });
 
   it("detects a PEM private key header", () => {
