@@ -2,7 +2,7 @@ import { scanText } from "../../src/detectors/secrets.js";
 import type { Finding } from "../../src/types.js";
 import { PromptGuardOverlay } from "./overlay.js";
 
-const VERSION = "0.0.3";
+const VERSION = "0.0.4";
 const SCAN_DEBOUNCE_MS = 300;
 
 interface PromptGuardWindow extends Window {
@@ -46,6 +46,37 @@ function getText(el: HTMLElement): string {
   return el.textContent ?? "";
 }
 
+/**
+ * Replace the text content of a prompt input in a way that the host site's
+ * framework (React on Claude, ProseMirror on Claude/ChatGPT) actually picks up.
+ *
+ * For textareas: set value and dispatch input event.
+ *
+ * For contenteditable (ProseMirror, TipTap, etc.): focus the element, select
+ * all of its contents, then use execCommand insertText to replace. execCommand
+ * is deprecated but it is still the most reliable cross-editor way to
+ * simulate "the user typed this text" because it dispatches the full chain of
+ * beforeinput + input events that editors expect.
+ */
+function setInputText(el: HTMLElement, newText: string) {
+  if (el instanceof HTMLTextAreaElement) {
+    el.value = newText;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
+
+  el.focus();
+  const sel = window.getSelection();
+  if (!sel) return;
+
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  document.execCommand("insertText", false, newText);
+}
+
 function debounce<F extends (...args: never[]) => void>(
   fn: F,
   delay: number,
@@ -57,24 +88,32 @@ function debounce<F extends (...args: never[]) => void>(
   }) as F;
 }
 
+const ignoredSignatures = new Set<string>();
+const signature = (f: Finding) => `${f.type}:${f.matched}`;
+
 let lastScanText = "";
+let lastInputEl: HTMLElement | null = null;
 let overlay: PromptGuardOverlay | null = null;
 
 function scanCurrent(el: HTMLElement) {
+  lastInputEl = el;
   const text = getText(el);
   if (text === lastScanText) return;
   lastScanText = text;
 
   try {
     const result = scanText(text);
-    if (overlay) overlay.setFindings(result.findings);
+    const visible = result.findings.filter(
+      (f) => !ignoredSignatures.has(signature(f)),
+    );
+    if (overlay) overlay.setFindings(visible);
 
-    if (result.findings.length > 0) {
+    if (visible.length > 0) {
       console.group(
-        `%c[PromptGuard] ${result.findings.length} finding${result.findings.length === 1 ? "" : "s"} in prompt`,
+        `%c[PromptGuard] ${visible.length} finding${visible.length === 1 ? "" : "s"} in prompt`,
         "color: #d97706; font-weight: 600;",
       );
-      result.findings.forEach((f: Finding, i: number) => {
+      visible.forEach((f: Finding, i: number) => {
         console.log(
           `${i + 1}. [${f.severity.toUpperCase()}] ${f.rule}\n   ${f.explanation}`,
         );
@@ -106,6 +145,48 @@ function tryAttach() {
   if (input) attachToInput(input);
 }
 
+function rescanNow() {
+  if (lastInputEl) {
+    lastScanText = ""; // force re-evaluation
+    scanCurrent(lastInputEl);
+  }
+}
+
+function redactOne(finding: Finding) {
+  if (!lastInputEl) return;
+  const text = getText(lastInputEl);
+  const placeholder = `[REDACTED:${finding.type}]`;
+  // Replace only the first occurrence of the matched text to keep behavior
+  // predictable when the same value appears twice in the prompt.
+  const newText = text.replace(finding.matched, placeholder);
+  if (newText === text) {
+    // Text shifted since the scan; fall back to a noop and let the next
+    // input cycle pick it up.
+    console.warn("[PromptGuard] redact target not found in current text");
+    return;
+  }
+  setInputText(lastInputEl, newText);
+  // Re-scan immediately so the overlay updates without waiting for the
+  // debounce on the next input event.
+  setTimeout(rescanNow, 0);
+}
+
+function redactAll(findings: Finding[]) {
+  if (!lastInputEl) return;
+  let text = getText(lastInputEl);
+  for (const f of findings) {
+    const placeholder = `[REDACTED:${f.type}]`;
+    text = text.replace(f.matched, placeholder);
+  }
+  setInputText(lastInputEl, text);
+  setTimeout(rescanNow, 0);
+}
+
+function ignoreOne(finding: Finding) {
+  ignoredSignatures.add(signature(finding));
+  rescanNow();
+}
+
 function init() {
   const win = window as PromptGuardWindow;
   if (win.__promptguardLoaded) return;
@@ -115,13 +196,18 @@ function init() {
     `[PromptGuard v${VERSION}] loaded on ${window.location.hostname}.`,
   );
 
-  // Mount the visual overlay once the body is ready.
-  if (document.body) {
-    overlay = new PromptGuardOverlay();
-  } else {
-    document.addEventListener("DOMContentLoaded", () => {
-      overlay = new PromptGuardOverlay();
+  const mountOverlay = () => {
+    overlay = new PromptGuardOverlay({
+      onRedact: redactOne,
+      onIgnore: ignoreOne,
+      onRedactAll: redactAll,
     });
+  };
+
+  if (document.body) {
+    mountOverlay();
+  } else {
+    document.addEventListener("DOMContentLoaded", mountOverlay);
   }
 
   tryAttach();
