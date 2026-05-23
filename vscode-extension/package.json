@@ -1,0 +1,64 @@
+{
+  "name": "promptguard",
+  "displayName": "PromptGuard",
+  "description": "Scan documents for AI-prompt secrets, API keys, and PII. Local, free, open source.",
+  "version": "0.0.1",
+  "publisher": "promptguardapp",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./dist/extension.js",
+  "categories": ["Linters", "Other"],
+  "keywords": ["security", "ai", "prompts", "secrets", "pii", "linting"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrishOjha1810/promptguard-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KrishOjha1810/promptguard-mcp/issues"
+  },
+  "homepage": "https://github.com/KrishOjha1810/promptguard-mcp#readme",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "promptguard.scanDocument",
+        "title": "PromptGuard: Scan current document"
+      },
+      {
+        "command": "promptguard.scanSelection",
+        "title": "PromptGuard: Scan selection"
+      },
+      {
+        "command": "promptguard.clearDiagnostics",
+        "title": "PromptGuard: Clear all PromptGuard markers"
+      }
+    ],
+    "configuration": {
+      "title": "PromptGuard",
+      "properties": {
+        "promptguard.scanOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scan a document automatically when it is opened."
+        },
+        "promptguard.scanOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-scan a document each time it is saved."
+        },
+        "promptguard.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a status bar item with the finding count for the current document."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  }
+}

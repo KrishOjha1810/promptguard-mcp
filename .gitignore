@@ -1,8 +1,10 @@
 node_modules/
 dist/
 extension/dist/
+vscode-extension/dist/
 coverage/
 promptguard-extension.zip
+*.vsix
 *.log
 .DS_Store
 .env

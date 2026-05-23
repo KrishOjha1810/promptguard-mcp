@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "src/**/*",
+    "../src/types.ts",
+    "../src/cost.ts",
+    "../src/compress.ts",
+    "../src/optimize.ts",
+    "../src/internal-tokens.ts",
+    "../src/pricing.ts",
+    "../src/detectors/**/*"
+  ]
+}

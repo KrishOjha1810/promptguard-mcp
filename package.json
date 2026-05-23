@@ -23,7 +23,10 @@
     "extension:watch": "cd extension && node build.mjs --watch",
     "extension:typecheck": "cd extension && tsc --noEmit",
     "extension:icons": "node extension/scripts/build-icons.mjs",
-    "extension:zip": "npm run extension:build && node extension/scripts/build-zip.mjs"
+    "extension:zip": "npm run extension:build && node extension/scripts/build-zip.mjs",
+    "vscode:build": "cd vscode-extension && node esbuild.config.mjs",
+    "vscode:watch": "cd vscode-extension && node esbuild.config.mjs --watch",
+    "vscode:typecheck": "cd vscode-extension && tsc --noEmit"
   },
   "keywords": [
     "mcp",
@@ -52,6 +55,7 @@
   "devDependencies": {
     "@types/chrome": "^0.0.275",
     "@types/node": "^22.0.0",
+    "@types/vscode": "^1.120.0",
     "esbuild": "^0.24.0",
     "sharp": "^0.34.5",
     "tsx": "^4.19.0",
