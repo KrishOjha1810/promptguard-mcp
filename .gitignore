@@ -2,6 +2,7 @@ node_modules/
 dist/
 extension/dist/
 coverage/
+promptguard-extension.zip
 *.log
 .DS_Store
 .env
