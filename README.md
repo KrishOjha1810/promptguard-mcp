@@ -22,7 +22,7 @@ The simplest setup uses `npx`, no manual install required. Add this block to Cla
   "mcpServers": {
     "promptguard": {
       "command": "npx",
-      "args": ["-y", "@krishojha1810/promptguard-mcp"]
+      "args": ["-y", "@promptguardapp/mcp"]
     }
   }
 }
@@ -37,7 +37,7 @@ If `node` or `npx` are not on Claude Desktop's PATH (common when Node is install
   "mcpServers": {
     "promptguard": {
       "command": "/absolute/path/to/npx",
-      "args": ["-y", "@krishojha1810/promptguard-mcp"]
+      "args": ["-y", "@promptguardapp/mcp"]
     }
   }
 }
