@@ -1,7 +1,8 @@
 import { scanText } from "../../src/detectors/secrets.js";
 import type { Finding } from "../../src/types.js";
+import { PromptGuardOverlay } from "./overlay.js";
 
-const VERSION = "0.0.2";
+const VERSION = "0.0.3";
 const SCAN_DEBOUNCE_MS = 300;
 
 interface PromptGuardWindow extends Window {
@@ -57,6 +58,7 @@ function debounce<F extends (...args: never[]) => void>(
 }
 
 let lastScanText = "";
+let overlay: PromptGuardOverlay | null = null;
 
 function scanCurrent(el: HTMLElement) {
   const text = getText(el);
@@ -65,6 +67,8 @@ function scanCurrent(el: HTMLElement) {
 
   try {
     const result = scanText(text);
+    if (overlay) overlay.setFindings(result.findings);
+
     if (result.findings.length > 0) {
       console.group(
         `%c[PromptGuard] ${result.findings.length} finding${result.findings.length === 1 ? "" : "s"} in prompt`,
@@ -76,11 +80,6 @@ function scanCurrent(el: HTMLElement) {
         );
       });
       console.groupEnd();
-    } else if (text.length > 0) {
-      console.log(
-        `%c[PromptGuard] prompt is clean (${text.length} chars scanned in ${result.scanMs.toFixed(2)} ms)`,
-        "color: #16a34a;",
-      );
     }
   } catch (err) {
     console.warn("[PromptGuard] scan error:", err);
@@ -116,9 +115,17 @@ function init() {
     `[PromptGuard v${VERSION}] loaded on ${window.location.hostname}.`,
   );
 
+  // Mount the visual overlay once the body is ready.
+  if (document.body) {
+    overlay = new PromptGuardOverlay();
+  } else {
+    document.addEventListener("DOMContentLoaded", () => {
+      overlay = new PromptGuardOverlay();
+    });
+  }
+
   tryAttach();
 
-  // Watch for SPA navigation and late-mounted prompt inputs.
   const observer = new MutationObserver(() => {
     tryAttach();
   });
