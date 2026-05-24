@@ -134,7 +134,7 @@ Edit `~/.claude/settings.json` and add this block (merge with existing `hooks` i
         "hooks": [
           {
             "type": "command",
-            "command": "npx -y -p @promptguardapp/mcp promptguard-hook",
+            "command": "npx --yes --package=@promptguardapp/mcp -- promptguard-hook",
             "timeout": 5
           }
         ]
