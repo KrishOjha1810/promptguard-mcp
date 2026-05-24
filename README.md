@@ -120,6 +120,34 @@ The model will call the appropriate tool and present the result inline.
 - Node.js 20 or later
 - Any MCP-compatible client (Claude Desktop, Cursor, Cline, Windsurf, Continue.dev, Goose, or any other client speaking the Model Context Protocol over stdio)
 
+## Claude Code hook (automatic scanning of every prompt you send)
+
+If you use [Claude Code](https://docs.claude.com/en/docs/claude-code) (the CLI), you can install PromptGuard as a `UserPromptSubmit` hook so every prompt you type gets scanned automatically before it is sent. No tool call required, no per-prompt action by you. If the scanner finds nothing, the prompt goes through silently. If it finds something, you see an inline warning listing what was caught.
+
+Edit `~/.claude/settings.json` and add this block (merge with existing `hooks` if you have one):
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx -y -p @promptguardapp/mcp promptguard-hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+That is the entire install. The first time you submit a prompt, `npx` downloads `@promptguardapp/mcp` and caches it. From then on, every prompt is scanned in roughly 50 ms.
+
+The hook never blocks your prompt. It only warns. You decide whether to retry redacted.
+
 ## Browser extension
 
 Beyond the MCP server, PromptGuard ships as a browser extension that scans prompts inline on AI chat sites (Claude.ai, ChatGPT, Gemini, Perplexity, You.com, Mistral). It draws Grammarly-style wavy underlines under detected secrets and PII, and offers one-click redaction, cost estimation, and prompt optimization.
