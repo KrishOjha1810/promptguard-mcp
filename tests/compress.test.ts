@@ -31,6 +31,29 @@ describe("compressPrompt - levels", () => {
     );
   });
 
+  it("caveman compression reduces tokens more than aggressive on the same text", () => {
+    const aggressive = compressPrompt(WORDY, "aggressive");
+    const caveman = compressPrompt(WORDY, "caveman");
+    expect(caveman.compressedTokens).toBeLessThanOrEqual(
+      aggressive.compressedTokens,
+    );
+  });
+
+  it("caveman compression strips articles globally", () => {
+    const result = compressPrompt(
+      "Show me the file the user opened on the desktop.",
+      "caveman",
+    );
+    // 'the' should not appear in the output (drop articles globally)
+    expect(result.compressedText.toLowerCase()).not.toMatch(/\bthe\b/);
+  });
+
+  it("caveman compression returns its own warning string", () => {
+    const result = compressPrompt("Some text here.", "caveman");
+    expect(result.warning).toMatch(/caveman/i);
+    expect(result.warning).toMatch(/articles/i);
+  });
+
   it("defaults to medium when no level given", () => {
     const result = compressPrompt(WORDY);
     expect(result.level).toBe("medium");
