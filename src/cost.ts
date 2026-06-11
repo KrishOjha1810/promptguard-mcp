@@ -14,6 +14,7 @@ type EncodingName = "cl100k_base" | "o200k_base";
 // token counts than cl100k_base for the same text. Claude models do not expose
 // their tokenizer; cl100k_base is a close approximation flagged below.
 const ENCODING_BY_MODEL: Record<SupportedModel, EncodingName> = {
+  "claude-opus-4-8": "cl100k_base",
   "claude-opus-4-7": "cl100k_base",
   "claude-sonnet-4-6": "cl100k_base",
   "claude-haiku-4-5": "cl100k_base",

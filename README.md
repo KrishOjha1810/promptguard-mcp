@@ -16,7 +16,7 @@ Prompts are a quiet exfiltration channel. Developers paste real AWS keys, GitHub
 
 PromptGuard sits between you and the language model and runs three checks locally, before the prompt is transmitted:
 
-- **Is anything sensitive in here?** Detects 23 patterns of secrets and personally identifiable information, with per-finding explanations and optional redaction.
+- **Is anything sensitive in here?** Detects 27 patterns of secrets and personally identifiable information, with per-finding explanations and optional redaction.
 - **What will this cost?** Counts tokens with the correct tokenizer per model and estimates the dollar cost before you send.
 - **Can this be tighter?** Suggests a leaner rewrite (optimize) or aggressively strips tokens (compress), while preserving code blocks.
 
@@ -24,9 +24,9 @@ Every byte of analysis happens on the user's machine. No prompt content is trans
 
 ## Features
 
-### Secret detection (13 patterns)
+### Secret detection (17 patterns)
 
-AWS access key IDs, GitHub classic / fine-grained / OAuth tokens, OpenAI API keys, Anthropic API keys, Stripe live and test secret keys, Slack bot and user tokens, Google API keys, npm access tokens, and PEM-encoded private keys. Each finding carries a severity, a confidence score, and a human-readable explanation of why it matters.
+AWS access key IDs, GitHub classic / fine-grained / OAuth tokens, OpenAI API keys, Anthropic API keys, Stripe live and test secret keys, Slack bot and user tokens, Slack incoming webhook URLs, Google API keys, npm access tokens, SendGrid API keys, PEM-encoded private keys, database connection strings with inline credentials (Mongo, Postgres, MySQL, Redis, AMQP), and JSON Web Tokens. Each finding carries a severity, a confidence score, and a human-readable explanation of why it matters.
 
 ### PII detection (10 patterns)
 
@@ -38,7 +38,7 @@ Validators cut false positives: a 16-digit number is only flagged as a card if i
 
 ### Token and cost estimation
 
-Token counts and dollar estimates across Claude (Opus 4.7, Sonnet 4.6, Haiku 4.5) and OpenAI (GPT-4o, GPT-4o-mini), powered by `js-tiktoken`. The correct tokenizer is used per model: `o200k_base` for GPT-4o, `cl100k_base` for older OpenAI models and as a flagged approximation for Claude (which does not publish its tokenizer).
+Token counts and dollar estimates across Claude (Opus 4.8, Opus 4.7, Sonnet 4.6, Haiku 4.5) and OpenAI (GPT-4o, GPT-4o-mini), powered by `js-tiktoken`. The correct tokenizer is used per model: `o200k_base` for GPT-4o, `cl100k_base` for older OpenAI models and as a flagged approximation for Claude (which does not publish its tokenizer).
 
 ### Prompt optimization and compression
 
@@ -64,7 +64,7 @@ A prompt comes in, the engine runs every rule against it, validators discard fal
 ```mermaid
 flowchart LR
     A[Prompt text] --> B[scanText engine]
-    B --> C[23 rules:<br/>13 secret + 10 PII]
+    B --> C[27 rules:<br/>17 secret + 10 PII]
     C --> D{Validators<br/>Luhn / Verhoeff}
     D -->|clean| E[No findings]
     D -->|match| F[Findings:<br/>severity + explanation]
