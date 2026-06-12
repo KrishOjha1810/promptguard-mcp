@@ -5,6 +5,8 @@ export type McpFindingCategory =
   | "tool_poisoning"
   | "hidden_unicode"
   | "tool_shadowing"
+  | "rug_pull"
+  | "drift"
   | "parse_warning";
 
 export type McpFinding = {

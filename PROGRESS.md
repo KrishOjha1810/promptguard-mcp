@@ -42,8 +42,9 @@ Detections:
 Output: human-readable + SARIF (`--sarif`), requires NO account.
 Demo: poisoned server in, PromptGuard catches it.
 
-### Phase 2, rug-pull detection (signature). NOT STARTED.
-Local pinning: hash each approved tool definition, alert on drift / re-prompt on change. The thing the local model does better than any cloud tool (spec makes list_changed a SHOULD-not-MUST, no integrity hash, no re-approval).
+### Phase 2, rug-pull detection (signature). DONE.
+Local pinning in `src/mcp-scan/pinning.ts`. `scan-mcp pin <file>` writes `<file>.pglock` with a stable sha256 per tool definition (key-order-independent). A later `scan-mcp <file>` auto-loads the sibling lockfile (or `--lockfile <p>`) and emits drift findings: CHANGED definition = critical rug_pull (the signature), added = medium, removed = low. `--no-drift` to skip. This is the capability the local model does better than any cloud tool (the MCP spec makes list_changed a SHOULD-not-MUST with no integrity hash and no re-approval).
+Demo: pin a clean server, mutate a tool, re-scan -> "Tool definition CHANGED since pin" critical, composing with the static poisoning rules. 4 new tests, 99 total, all green.
 
 ### Phase 3, adversarial test harness. NOT STARTED.
 Integrate AgentDojo (arXiv:2406.13352) corpus; ship a curated MCP attack suite; begin the public reproducible benchmark.

@@ -1,7 +1,8 @@
-import { readFileSync } from "node:fs";
-import { scanMcp } from "./scanner.js";
+import { readFileSync, writeFileSync } from "node:fs";
+import { scanMcp, tolerantParse } from "./scanner.js";
 import { toSarif } from "./sarif.js";
-import type { McpScanResult } from "./types.js";
+import { buildLock, diffAgainstLock, type Lockfile } from "./pinning.js";
+import type { McpDocument, McpScanResult } from "./types.js";
 import type { Severity } from "../types.js";
 
 const SEVERITY_ORDER: Record<Severity, number> = {
@@ -54,12 +55,63 @@ Usage:
   scan-mcp --stdin                read the document from stdin
   scan-mcp --fail-on <level>      exit non-zero at/above level (default: high)
                                   levels: low | medium | high | critical | never
+  scan-mcp pin <file>             approve current tool definitions: write a
+                                  lockfile of per-tool hashes (<file>.pglock)
+  scan-mcp <file> --lockfile <p>  compare against a specific lockfile
+  scan-mcp <file> --no-drift      skip rug-pull / drift checking
+
+Rug-pull detection:
+  After 'pin', a later scan compares each tool definition to its approved
+  hash. A CHANGED definition is flagged critical (the rug-pull pattern). New
+  and removed tools are flagged too. All local, no account.
 
 Exit codes:
   0  no findings at or above the fail-on level
   1  findings at or above the fail-on level (CI gate fails)
   2  usage or read error
 `;
+
+function defaultLockPath(file: string): string {
+  return `${file}.pglock`;
+}
+
+function loadLock(path: string): Lockfile | null {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    if (parsed && typeof parsed === "object" && parsed.pins) return parsed as Lockfile;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function runPin(args: string[]): number {
+  const file = args.find((a) => !a.startsWith("--"));
+  if (!file) {
+    process.stderr.write("scan-mcp pin: provide a file to pin.\n");
+    return 2;
+  }
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    process.stderr.write(`scan-mcp pin: could not read ${file}.\n`);
+    return 2;
+  }
+  const doc = tolerantParse(text) as McpDocument | null;
+  if (!doc) {
+    process.stderr.write("scan-mcp pin: input is not valid JSON; cannot pin.\n");
+    return 2;
+  }
+  const lockIdx = args.indexOf("--lockfile");
+  const lockPath = lockIdx >= 0 ? args[lockIdx + 1] : defaultLockPath(file);
+  const lock = buildLock(doc);
+  writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+  process.stdout.write(
+    `pinned ${Object.keys(lock.pins).length} tool definition(s) to ${lockPath}\n`,
+  );
+  return 0;
+}
 
 function readInput(args: string[]): { text: string; uri: string } | null {
   if (args.includes("--stdin")) {
@@ -129,6 +181,10 @@ export function runCli(argv: string[]): number {
     return args.length === 0 ? 2 : 0;
   }
 
+  if (args[0] === "pin") {
+    return runPin(args.slice(1));
+  }
+
   const input = readInput(args);
   if (!input) {
     process.stderr.write("scan-mcp: could not read input file or stdin.\n\n");
@@ -140,6 +196,24 @@ export function runCli(argv: string[]): number {
   const failOn = failOnIdx >= 0 ? args[failOnIdx + 1] : "high";
 
   const result = scanMcp(input.text);
+
+  // Rug-pull / drift: compare against a lockfile if present.
+  if (!args.includes("--no-drift")) {
+    const lockIdx = args.indexOf("--lockfile");
+    const lockPath =
+      lockIdx >= 0
+        ? args[lockIdx + 1]
+        : input.uri !== "<stdin>"
+          ? defaultLockPath(input.uri)
+          : null;
+    if (lockPath) {
+      const lock = loadLock(lockPath);
+      if (lock) {
+        const doc = tolerantParse(input.text) as McpDocument | null;
+        if (doc) result.findings.push(...diffAgainstLock(doc, lock));
+      }
+    }
+  }
 
   if (args.includes("--sarif")) {
     process.stdout.write(JSON.stringify(toSarif(result, input.uri), null, 2) + "\n");
