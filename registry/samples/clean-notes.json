@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "notes": {
+      "command": "npx",
+      "args": ["-y", "example-notes-mcp"],
+      "env": { "NOTES_API_KEY": "${NOTES_API_KEY}" },
+      "tools": [
+        {
+          "name": "save_note",
+          "description": "Saves a note for the user and returns its id.",
+          "inputSchema": {
+            "type": "object",
+            "properties": { "text": { "type": "string", "description": "The note text." } }
+          }
+        },
+        {
+          "name": "list_notes",
+          "description": "Lists the user's saved notes.",
+          "inputSchema": { "type": "object", "properties": {} }
+        }
+      ]
+    }
+  }
+}

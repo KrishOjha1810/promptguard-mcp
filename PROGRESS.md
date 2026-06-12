@@ -52,8 +52,19 @@ Building the corpus surfaced and fixed a real detection gap: the exfiltration ru
 
 Note on AgentDojo: integrated as inspiration and format, not as a runtime pip dependency (keeps the tool local-first and dependency-light). AgentDojo-derived cases can be added to corpus.json directly.
 
-### Phase 4, distribution + benchmark-as-marketing. NOT STARTED.
-Claude Code hook integration, docs, public registry/leaderboard of scanned popular MCP servers.
+### Phase 4, distribution + benchmark-as-marketing. DONE.
+- README: new "MCP security: scan-mcp" section documenting scan, pin/rug-pull, SARIF/CI gate, bench, and the OWASP mapping. Distribution-facing.
+- Registry leaderboard: `src/mcp-scan/registry.ts` + `scan-mcp registry <manifest>` scans a manifest of servers (local config/tools files) and renders a markdown safety leaderboard (BLOCKED/WARN/CLEAN). Seeded `registry/servers.json` (a clean control + the poisoned demo) and generated `REGISTRY.md`. This is the benchmark-as-marketing moat piece; real popular-server entries can be added by dropping their tools/list output into a local file.
+- Claude Code SessionStart hook: `src/mcp-scan/session-hook.ts` + bin `promptguard-mcp-session-hook` scans known MCP config locations at session start and surfaces high/critical findings. Documented in README. NOT auto-installed into the user's settings.json (left as a documented opt-in to avoid surprising config changes; the existing prompt hook stays as-is).
+- npm `files` now includes `bench/corpus.json` so `scan-mcp bench` works from an npx install.
+Build + typecheck clean, 101 tests green.
+
+## All four phases complete. Summary of what shipped
+- scan-mcp: local MCP security scanner (secrets, tool poisoning, full-schema, hidden unicode, shadowing) with human/SARIF/JSON output and a CI gate.
+- Rug-pull detection via local pinning (the signature, local-first advantage).
+- Reproducible benchmark corpus + runner (regression gate, OSS-standard seed).
+- Registry leaderboard generator + SessionStart hook + README docs.
+Three CLI surfaces: `node dist/index.js scan-mcp ...`, `promptguard-scan-mcp`, `npx @promptguardapp/mcp scan-mcp ...`. Existing prompt-safety features untouched. 101 tests, all green.
 
 ### DEFERRED (not building now)
 - Spend proxy and runtime dataflow enforcement. We do not become a key-holding proxy; it breaks local-first. Local soft-cap via the hook is the most we touch on spend.

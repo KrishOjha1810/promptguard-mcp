@@ -6,11 +6,13 @@
   "bin": {
     "promptguard-mcp": "dist/index.js",
     "promptguard-hook": "dist/hook.js",
-    "promptguard-scan-mcp": "dist/mcp-scan/bin.js"
+    "promptguard-scan-mcp": "dist/mcp-scan/bin.js",
+    "promptguard-mcp-session-hook": "dist/mcp-scan/session-hook.js"
   },
   "main": "dist/index.js",
   "files": [
     "dist",
+    "bench/corpus.json",
     "README.md",
     "LICENSE"
   ],

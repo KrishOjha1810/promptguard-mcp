@@ -86,6 +86,58 @@ The server exposes four tools to any MCP-compatible client:
 
 (A `ping` health-check tool is also exposed so a client can confirm the server is alive.)
 
+## MCP security: scan-mcp
+
+Beyond scanning prompts, PromptGuard scans the MCP servers you install. MCP is a transport spec, not a security model: there is no signing of tool definitions, no sandbox requirement, and no capability model. A malicious or compromised server can hide instructions in a tool description (tool poisoning), impersonate a trusted tool (shadowing), or change its definition after you approved it (rug pull). `scan-mcp` checks for these locally, with no account and no network.
+
+```bash
+# Scan an MCP config or a tools/list document
+npx @promptguardapp/mcp scan-mcp ./.mcp.json
+
+# Approve the current tool definitions, then detect tampering later
+npx @promptguardapp/mcp scan-mcp pin ./.mcp.json     # writes .mcp.json.pglock
+npx @promptguardapp/mcp scan-mcp ./.mcp.json         # flags any drift as rug-pull
+
+# CI gate: SARIF for code scanning, exit non-zero on findings
+npx @promptguardapp/mcp scan-mcp ./.mcp.json --sarif --fail-on high
+
+# Run the public benchmark corpus
+npx @promptguardapp/mcp scan-mcp bench
+```
+
+What it detects:
+
+- **Hardcoded secrets in config** (env, args, url), reusing the prompt secret engine. GitGuardian found 24,008 secrets in public MCP config files in 2025.
+- **Tool poisoning**: instruction-override, hide-from-user directives, embedded system tags, read-and-send exfiltration, cross-tool redirection. Full-schema: every field is scanned (names, defaults, nested schema), not just the description.
+- **Hidden unicode**: zero-width, bidirectional-override, and tag characters used to hide instructions from human reviewers.
+- **Tool shadowing**: the same tool name claimed by more than one server.
+- **Rug-pull**: a previously pinned tool definition that changed. This is the capability a local tool does better than a cloud scanner, because the spec never requires re-approval on change.
+
+Findings map to OWASP LLM Top 10 (LLM01, LLM03, LLM06) and OWASP Agentic Threats (T2, T3, T6). The OWASP MCP Top 10 is referenced as emerging.
+
+The [`bench/`](./bench) directory is a reproducible, contributable benchmark corpus (inspired by AgentDojo). `scan-mcp registry <manifest>` produces a [safety leaderboard](./REGISTRY.md) of scanned servers.
+
+### Optional: scan MCP config at session start (Claude Code)
+
+Add a SessionStart hook to `~/.claude/settings.json` to scan your MCP config whenever a session begins:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --yes --package=@promptguardapp/mcp -- promptguard-mcp-session-hook"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ## Install and use
 
 The simplest setup uses `npx`, so there is no manual install.

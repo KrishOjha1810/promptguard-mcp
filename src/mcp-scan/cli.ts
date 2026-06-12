@@ -3,6 +3,7 @@ import { scanMcp, tolerantParse } from "./scanner.js";
 import { toSarif } from "./sarif.js";
 import { buildLock, diffAgainstLock, type Lockfile } from "./pinning.js";
 import { loadCorpus, runBenchmark, defaultCorpusPath } from "./bench.js";
+import { loadManifest, scanRegistry, renderLeaderboard } from "./registry.js";
 import type { McpDocument, McpScanResult } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -84,6 +85,32 @@ function loadLock(path: string): Lockfile | null {
   } catch {
     return null;
   }
+}
+
+function runRegistry(args: string[]): number {
+  const manifestPath = args.find((a) => !a.startsWith("--"));
+  if (!manifestPath) {
+    process.stderr.write("scan-mcp registry: provide a manifest JSON path.\n");
+    return 2;
+  }
+  let manifest;
+  try {
+    manifest = loadManifest(manifestPath);
+  } catch {
+    process.stderr.write(`scan-mcp registry: could not read manifest ${manifestPath}.\n`);
+    return 2;
+  }
+  const rows = scanRegistry(manifest, manifestPath);
+  const generatedOn = new Date().toISOString().slice(0, 10);
+  const md = renderLeaderboard(rows, generatedOn);
+  const outIdx = args.indexOf("--out");
+  if (outIdx >= 0) {
+    writeFileSync(args[outIdx + 1], md);
+    process.stdout.write(`wrote leaderboard to ${args[outIdx + 1]}\n`);
+  } else {
+    process.stdout.write(md);
+  }
+  return 0;
 }
 
 function runBench(args: string[]): number {
@@ -209,6 +236,10 @@ export function runCli(argv: string[]): number {
 
   if (args[0] === "bench") {
     return runBench(args.slice(1));
+  }
+
+  if (args[0] === "registry") {
+    return runRegistry(args.slice(1));
   }
 
   const input = readInput(args);

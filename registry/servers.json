@@ -1,0 +1,13 @@
+{
+  "about": "Manifest of MCP servers to scan for the public safety leaderboard. Each entry points to a local JSON file holding the server's config or published tool definitions. To add real popular servers, fetch their tools/list output (or config) into a local file and add an entry. No server code is executed; scanning is static and local.",
+  "servers": [
+    {
+      "name": "example-notes (clean control)",
+      "source": "samples/clean-notes.json"
+    },
+    {
+      "name": "helpful-notes (intentionally poisoned demo)",
+      "source": "../examples/poisoned-mcp-server.json"
+    }
+  ]
+}
