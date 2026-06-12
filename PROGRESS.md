@@ -46,8 +46,11 @@ Demo: poisoned server in, PromptGuard catches it.
 Local pinning in `src/mcp-scan/pinning.ts`. `scan-mcp pin <file>` writes `<file>.pglock` with a stable sha256 per tool definition (key-order-independent). A later `scan-mcp <file>` auto-loads the sibling lockfile (or `--lockfile <p>`) and emits drift findings: CHANGED definition = critical rug_pull (the signature), added = medium, removed = low. `--no-drift` to skip. This is the capability the local model does better than any cloud tool (the MCP spec makes list_changed a SHOULD-not-MUST with no integrity hash and no re-approval).
 Demo: pin a clean server, mutate a tool, re-scan -> "Tool definition CHANGED since pin" critical, composing with the static poisoning rules. 4 new tests, 99 total, all green.
 
-### Phase 3, adversarial test harness. NOT STARTED.
-Integrate AgentDojo (arXiv:2406.13352) corpus; ship a curated MCP attack suite; begin the public reproducible benchmark.
+### Phase 3, adversarial test harness + benchmark. DONE.
+Shipped `bench/corpus.json` (14 cases: 10 malicious across the attack taxonomy + 4 benign false-positive controls, each with provenance and an OWASP mapping) and `src/mcp-scan/bench.ts` (runner: recall on malicious, false-positive rate on benign). Exposed as `scan-mcp bench [corpus]`; exit 0 only at 100% recall and 0 false positives, so it is also a regression gate. `bench/README.md` documents the format and how to contribute, framed as the seed of a public OSS benchmark (inspired by AgentDojo, arXiv:2406.13352).
+Building the corpus surfaced and fixed a real detection gap: the exfiltration rule matched only imperative verbs (read/send), not declarative (reads/sends); broadened to verb forms. Current: recall 100% (10/10), 0 false positives, 101 tests total, all green.
+
+Note on AgentDojo: integrated as inspiration and format, not as a runtime pip dependency (keeps the tool local-first and dependency-light). AgentDojo-derived cases can be added to corpus.json directly.
 
 ### Phase 4, distribution + benchmark-as-marketing. NOT STARTED.
 Claude Code hook integration, docs, public registry/leaderboard of scanned popular MCP servers.

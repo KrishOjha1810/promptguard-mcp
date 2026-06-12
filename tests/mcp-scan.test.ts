@@ -231,3 +231,20 @@ describe("toSarif", () => {
     expect(sarif.runs[0].results.length).toBeGreaterThan(0);
   });
 });
+
+import { loadCorpus, runBenchmark, defaultCorpusPath } from "../src/mcp-scan/bench.js";
+
+describe("benchmark corpus", () => {
+  const report = runBenchmark(loadCorpus(defaultCorpusPath()));
+
+  it("catches every malicious case (recall 100%)", () => {
+    const misses = report.caseResults.filter((r) => r.malicious && !r.pass);
+    expect(misses, JSON.stringify(misses, null, 2)).toHaveLength(0);
+    expect(report.recall).toBe(1);
+  });
+
+  it("has zero false positives on benign controls", () => {
+    const fps = report.caseResults.filter((r) => !r.malicious && !r.pass);
+    expect(fps, JSON.stringify(fps, null, 2)).toHaveLength(0);
+  });
+});

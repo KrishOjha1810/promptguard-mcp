@@ -52,7 +52,7 @@ export const POISONING_RULES: PoisoningRule[] = [
     id: "exfiltration_directive",
     title: "Exfiltration directive (read-and-send)",
     pattern:
-      /\b(read|cat|load|open|access|fetch)\b[^.]{0,40}\b(\.env|\.ssh|id_rsa|credentials?|secrets?|api[_\s-]?keys?|private[_\s-]?key|~\/\.|\/etc\/passwd)\b|\b(send|forward|post|upload|exfiltrate|bcc|email)\b[^.]{0,40}\b(to|content|file|data|contents|result)\b/gi,
+      /\b(reads?|reading|cat|loads?|loading|opens?|opening|accesses?|accessing|fetch(?:es)?|fetching)\b[^.]{0,40}\b(\.env|\.ssh|id_rsa|credentials?|secrets?|api[_\s-]?keys?|private[_\s-]?key|~\/\.|\/etc\/passwd)\b|\b(sends?|sending|forwards?|forwarding|posts?|posting|uploads?|uploading|exfiltrates?|bccs?|emails?|emailing)\b[^.]{0,40}\b(to|content|file|data|contents|result)\b/gi,
     severity: "critical",
     confidence: 0.75,
     explanation:

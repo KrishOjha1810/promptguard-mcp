@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { scanMcp, tolerantParse } from "./scanner.js";
 import { toSarif } from "./sarif.js";
 import { buildLock, diffAgainstLock, type Lockfile } from "./pinning.js";
+import { loadCorpus, runBenchmark, defaultCorpusPath } from "./bench.js";
 import type { McpDocument, McpScanResult } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -83,6 +84,27 @@ function loadLock(path: string): Lockfile | null {
   } catch {
     return null;
   }
+}
+
+function runBench(args: string[]): number {
+  const path = args.find((a) => !a.startsWith("--")) ?? defaultCorpusPath();
+  let corpus;
+  try {
+    corpus = loadCorpus(path);
+  } catch {
+    process.stderr.write(`scan-mcp bench: could not read corpus at ${path}.\n`);
+    return 2;
+  }
+  const report = runBenchmark(corpus);
+  for (const r of report.caseResults) {
+    const mark = r.pass ? "PASS" : "FAIL";
+    process.stdout.write(`[${mark}] ${r.id}  ${r.title}\n        ${r.reason}\n`);
+  }
+  process.stdout.write(
+    `\nrecall ${(report.recall * 100).toFixed(1)}% (${report.detected}/${report.malicious} malicious caught), ` +
+      `${report.falsePositives} false positive(s) on ${report.benign} benign control(s)\n`,
+  );
+  return report.recall >= 1 && report.falsePositives === 0 ? 0 : 1;
 }
 
 function runPin(args: string[]): number {
@@ -183,6 +205,10 @@ export function runCli(argv: string[]): number {
 
   if (args[0] === "pin") {
     return runPin(args.slice(1));
+  }
+
+  if (args[0] === "bench") {
+    return runBench(args.slice(1));
   }
 
   const input = readInput(args);
