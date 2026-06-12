@@ -21,7 +21,18 @@ Detections map to OWASP LLM Top 10 (LLM01-LLM10) and OWASP Agentic Threats (T1-T
 2. `dist/index.js` branches on `argv[2] === "scan-mcp"` so `npx @promptguardapp/mcp scan-mcp <x>` works
 3. (later phase) an MCP tool `scan_mcp_config`
 
-### Phase 1, scan-mcp MVP (the beachhead). IN PROGRESS.
+### Phase 1, scan-mcp MVP (the beachhead). DONE.
+Shipped `src/mcp-scan/` (scanner, poisoning-rules, sarif, cli, bin, types). Reuses the secret engine for config scanning. Runnable three ways:
+- `node dist/index.js scan-mcp <file>` (subcommand branch on the default entry)
+- `promptguard-scan-mcp` bin
+- `npx @promptguardapp/mcp scan-mcp <file>` after publish
+Detections live: secrets in config (env/args/url, with overlap dedupe), tool-poisoning (6 rules: instruction-override, hide-from-user, embedded directive tags, exfiltration, cross-tool redirection, imperative-to-model), hidden/invisible unicode (zero-width, bidi, tag chars), full-schema walk (every field incl. nested defaults/keys), tool-name shadowing across servers. Output: human-readable + `--sarif` (2.1.0) + `--json`. `--fail-on <level>` for CI gate (default high), exit 1 on gate failure. `--stdin` supported. No account, no network.
+Demo: `examples/poisoned-mcp-server.json` -> 3 critical + 2 high (DB secret, hide-from-user, exfiltration, cross-tool redirection, name collision). Exit 1.
+Tests: 11 new (95 total), all green. Maps to OWASP LLM01/LLM06 and Agentic T2/T3/T6.
+
+Known refinement (not blocking): poisoning rules are static regex; dynamic injection via tool OUTPUTS and rug-pull are Phase 2/3+ and runtime, by design.
+
+### Phase 1 (historical detail)
 Target: `npx @promptguardapp/mcp scan-mcp <config-or-server>`, fully local/offline.
 Detections:
 - Hardcoded secrets in MCP config files (reuse secret engine) [maps OWASP LLM06/Supply-Chain; GitGuardian: 24,008 secrets found in real MCP configs, 2,117 live]

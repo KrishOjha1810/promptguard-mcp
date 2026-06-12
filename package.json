@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "promptguard-mcp": "dist/index.js",
-    "promptguard-hook": "dist/hook.js"
+    "promptguard-hook": "dist/hook.js",
+    "promptguard-scan-mcp": "dist/mcp-scan/bin.js"
   },
   "main": "dist/index.js",
   "files": [

@@ -15,7 +15,16 @@ import {
 } from "./cost.js";
 import { optimizePrompt } from "./optimize.js";
 import { compressPrompt, type CompressionLevel } from "./compress.js";
+import { runCli as runScanMcpCli } from "./mcp-scan/cli.js";
 import { createRequire } from "node:module";
+
+// Subcommand branch: `npx @promptguardapp/mcp scan-mcp <file>` runs the local
+// MCP security scanner instead of starting the stdio MCP server. Keeping this
+// in the default entrypoint means users do not need to know a separate bin
+// name. With no subcommand, the MCP server starts as usual.
+if (process.argv[2] === "scan-mcp") {
+  process.exit(runScanMcpCli(process.argv.slice(3)));
+}
 
 // Read the version from package.json so it never drifts from the published build.
 const require = createRequire(import.meta.url);
