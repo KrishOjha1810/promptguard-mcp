@@ -117,33 +117,15 @@ function snippet(s: string, max = 60): string {
   return c.length <= max ? c : c.slice(0, max) + "...";
 }
 
-// Compare current document against a saved lockfile, per field, with severity
-// tiering. Cosmetic-only changes stay silent. A changed description that trips
-// the poisoning rules is a critical rug-pull.
-export function diffAgainstLock(doc: McpDocument, lock: Lockfile): McpFinding[] {
+// Compare a previously-pinned tool against its current pin, per field, with
+// severity tiering. Cosmetic-only changes return nothing; a changed
+// description that trips the poisoning rules is a critical rug-pull. Shared by
+// diffAgainstLock and the continuous monitor.
+export function comparePins(prev: ToolPin, cur: ToolPin): McpFinding[] {
   const findings: McpFinding[] = [];
-  const current = new Map(collectTools(doc).map((t) => [t.key, t.pin]));
 
-  for (const [key, cur] of current) {
-    const prev = lock.pins[key];
-    if (!prev) {
-      findings.push({
-        category: "drift",
-        ruleId: "tool_added",
-        title: `New tool since pin: "${cur.name}"`,
-        severity: "medium",
-        confidence: 0.9,
-        location: cur.location,
-        evidence: `${key} not present in the lockfile`,
-        explanation:
-          "A tool appeared that was not in the approved lockfile. New tools should be reviewed and re-pinned before use.",
-        owasp: ["LLM03", "T2"],
-      });
-      continue;
-    }
-
-    // Description changed: the highest-signal field.
-    if (prev.description !== cur.description) {
+  // Description changed: the highest-signal field.
+  if (prev.description !== cur.description) {
       const tripped = tripsPoisoning(cur.description);
       if (tripped) {
         findings.push({
@@ -191,24 +173,49 @@ export function diffAgainstLock(doc: McpDocument, lock: Lockfile): McpFinding[] 
       });
     }
 
-    // Annotations changed: e.g. destructiveHint or readOnlyHint flips.
-    if (prev.annotationsCanonical !== cur.annotationsCanonical) {
-      findings.push({
-        category: "drift",
-        ruleId: "annotations_changed",
-        title: `Tool annotations changed since pin: "${cur.name}"`,
-        severity: "high",
-        confidence: 0.8,
-        location: cur.location,
-        evidence: "annotations (e.g. destructive/read-only hints) changed",
-        explanation:
-          "A tool's behavioral annotations changed after approval. A tool flipping from read-only to destructive after you trusted it is a privilege-escalation risk.",
-        owasp: ["LLM03", "T3"],
-      });
-    }
+  // Annotations changed: e.g. destructiveHint or readOnlyHint flips.
+  if (prev.annotationsCanonical !== cur.annotationsCanonical) {
+    findings.push({
+      category: "drift",
+      ruleId: "annotations_changed",
+      title: `Tool annotations changed since pin: "${cur.name}"`,
+      severity: "high",
+      confidence: 0.8,
+      location: cur.location,
+      evidence: "annotations (e.g. destructive/read-only hints) changed",
+      explanation:
+        "A tool's behavioral annotations changed after approval. A tool flipping from read-only to destructive after you trusted it is a privilege-escalation risk.",
+      owasp: ["LLM03", "T3"],
+    });
   }
 
-  // Removed tools.
+  return findings;
+}
+
+export function diffAgainstLock(doc: McpDocument, lock: Lockfile): McpFinding[] {
+  const findings: McpFinding[] = [];
+  const current = new Map(collectTools(doc).map((t) => [t.key, t.pin]));
+
+  for (const [key, cur] of current) {
+    const prev = lock.pins[key];
+    if (!prev) {
+      findings.push({
+        category: "drift",
+        ruleId: "tool_added",
+        title: `New tool since pin: "${cur.name}"`,
+        severity: "medium",
+        confidence: 0.9,
+        location: cur.location,
+        evidence: `${key} not present in the lockfile`,
+        explanation:
+          "A tool appeared that was not in the approved lockfile. New tools should be reviewed and re-pinned before use.",
+        owasp: ["LLM03", "T2"],
+      });
+      continue;
+    }
+    findings.push(...comparePins(prev, cur));
+  }
+
   for (const key of Object.keys(lock.pins)) {
     if (!current.has(key)) {
       findings.push({

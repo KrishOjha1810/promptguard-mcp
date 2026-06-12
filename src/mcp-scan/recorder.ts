@@ -228,7 +228,13 @@ export function recordTrace(text: string): RecorderResult {
 }
 
 // ---------------------------------------------------------------------------
-// IETF-AAT-style tamper-evident audit log (hash-chained JSONL).
+// Tamper-evident audit log (hash-chained JSONL), aligned with the IETF Agent
+// Audit Trail draft (draft-sharif-agent-audit-trail-00). That draft is early
+// and will change, so this is "aligned with draft-00", not "conformant", and
+// the record shape is intentionally easy to version. The hash chain makes
+// tampering EVIDENT (verify breaks at the edited line); it is not tamper-PROOF
+// against a local attacker who can rewrite from genesis. Optional signing and
+// external anchoring are the roadmap for that.
 // ---------------------------------------------------------------------------
 
 export type AatRecord = {
