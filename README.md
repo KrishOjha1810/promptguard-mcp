@@ -1,40 +1,103 @@
 # PromptGuard
 
-> A local-first Model Context Protocol (MCP) server that scans developer prompts for secrets, personally identifiable information, and cost before they reach the language model. Includes prompt compression and structural feedback.
+> Catch secrets, PII, and runaway token cost in your prompts before they ever reach the language model. Local-first, zero telemetry.
 
-Also available as a browser extension for inline scanning on claude.ai, ChatGPT, Gemini, Perplexity, You.com, and Mistral. See [`extension/`](./extension) for that.
+[![npm](https://img.shields.io/badge/npm-%40promptguardapp%2Fmcp-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/package/@promptguardapp/mcp)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-server-5A45FF)](https://modelcontextprotocol.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Node](https://img.shields.io/badge/Node-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+
+PromptGuard is a Model Context Protocol (MCP) server, plus a browser extension and a VS Code extension, that scans developer prompts on your own machine before they are sent anywhere. It flags leaked credentials and personal data, previews token cost, and tightens bloated prompts.
 
 ## What it does
 
-PromptGuard exposes four tools to any MCP-compatible client:
+Prompts are a quiet exfiltration channel. Developers paste real AWS keys, GitHub tokens, customer emails, and entire SSN-laden support tickets into a chat box, and that text leaves the building the moment they hit send. The same prompts are often padded with filler that burns tokens (and money) on every call.
 
-- `scan_prompt`: detects 23 patterns of sensitive data including AWS keys, GitHub tokens, OpenAI / Anthropic / Stripe / Slack / npm tokens, credit cards (Luhn validated), US SSNs, Indian Aadhaar (Verhoeff validated), PAN, GSTIN, UPI handles, IFSC codes, emails, and phone numbers. Sub-millisecond scans, with per-finding explanations.
-- `optimize_prompt`: suggests a cleaner version of a prompt with structural feedback (missing task verb, missing output format). Stays silent on already-good prompts.
-- `compress_prompt`: aggressive token reduction with three levels (light, medium, aggressive). Preserves code blocks. Realistic 10 to 25 percent savings on typical prompts.
-- `estimate_cost`: token count and dollar estimate across Claude (Opus, Sonnet, Haiku) and OpenAI (GPT-4o, GPT-4o-mini). Uses the correct tokenizer per model (o200k_base for GPT-4o, cl100k_base for older OpenAI and as an approximation for Claude).
+PromptGuard sits between you and the language model and runs three checks locally, before the prompt is transmitted:
 
-All analysis runs on the user's machine. No prompt content is transmitted to external services.
+- **Is anything sensitive in here?** Detects 27 patterns of secrets and personally identifiable information, with per-finding explanations and optional redaction.
+- **What will this cost?** Counts tokens with the correct tokenizer per model and estimates the dollar cost before you send.
+- **Can this be tighter?** Suggests a leaner rewrite (optimize) or aggressively strips tokens (compress), while preserving code blocks.
 
-## Works in any MCP-compatible client
+Every byte of analysis happens on the user's machine. No prompt content is transmitted to any external service.
 
-PromptGuard is just an MCP server, so any client that speaks the Model Context Protocol can use it. Verified working in:
+## Features
 
-- **Claude Desktop**
-- **Cursor** (added MCP support in 2025)
-- **Cline** (formerly Claude-dev, VS Code)
-- **Windsurf** (Codeium)
-- **Continue.dev** (VS Code and JetBrains)
-- **Goose** (Block)
+### Secret detection (17 patterns)
 
-The config below works in all of them with minor file-path adjustments. See the "Configuration" section for each client.
+AWS access key IDs, GitHub classic / fine-grained / OAuth tokens, OpenAI API keys, Anthropic API keys, Stripe live and test secret keys, Slack bot and user tokens, Slack incoming webhook URLs, Google API keys, npm access tokens, SendGrid API keys, PEM-encoded private keys, database connection strings with inline credentials (Mongo, Postgres, MySQL, Redis, AMQP), and JSON Web Tokens. Each finding carries a severity, a confidence score, and a human-readable explanation of why it matters.
 
-## Installation
+### PII detection (10 patterns)
 
-The simplest setup uses `npx`. No manual install required.
+- **Universal:** email addresses, credit card numbers (Luhn-validated).
+- **US:** phone numbers, Social Security Numbers.
+- **India:** mobile numbers, Aadhaar (Verhoeff checksum validated), PAN, GSTIN, UPI IDs, and IFSC codes.
+
+Validators cut false positives: a 16-digit number is only flagged as a card if it passes the Luhn check, and a 12-digit number is only flagged as Aadhaar if it passes the Verhoeff checksum.
+
+### Token and cost estimation
+
+Token counts and dollar estimates across Claude (Opus 4.8, Opus 4.7, Sonnet 4.6, Haiku 4.5) and OpenAI (GPT-4o, GPT-4o-mini), powered by `js-tiktoken`. The correct tokenizer is used per model: `o200k_base` for GPT-4o, `cl100k_base` for older OpenAI models and as a flagged approximation for Claude (which does not publish its tokenizer).
+
+### Prompt optimization and compression
+
+- **optimize_prompt** removes filler, verbose phrases, and hedging, and flags missing structure (no task verb, no output format). It stays silent on prompts that are already concise.
+- **compress_prompt** does aggressive token reduction at three levels (light, medium, aggressive), preserving fenced code blocks. Realistic savings are 10 to 25 percent on typical prompts.
+
+### Local-first by design
+
+No backend, no telemetry, no accounts, no analytics SDKs. The MCP server speaks stdio, and the browser extension makes zero network requests of its own. See [Privacy](#privacy).
+
+### Three surfaces, one engine
+
+The same `scanText` detection engine backs all three products:
+
+- **MCP server** for any MCP-compatible client (Claude Desktop, Cursor, Cline, Windsurf, Continue.dev, Goose) and as a Claude Code prompt hook.
+- **Browser extension** for inline scanning on Claude.ai, ChatGPT, Gemini, Perplexity, You.com, and Mistral. See [`extension/README.md`](./extension/README.md).
+- **VS Code extension** that scans the current document and surfaces findings in the Problems panel. See [`vscode-extension/README.md`](./vscode-extension/README.md).
+
+## How it works
+
+A prompt comes in, the engine runs every rule against it, validators discard false positives, and the result is a verdict: either a clean pass or a list of findings (with an optional redacted copy of the text).
+
+```mermaid
+flowchart LR
+    A[Prompt text] --> B[scanText engine]
+    B --> C[27 rules:<br/>17 secret + 10 PII]
+    C --> D{Validators<br/>Luhn / Verhoeff}
+    D -->|clean| E[No findings]
+    D -->|match| F[Findings:<br/>severity + explanation]
+    F --> G[Optional redacted text]
+```
+
+Scans are sub-millisecond in-process, so the check adds no meaningful latency to your workflow. The MCP server exposes the engine (and the cost, optimize, and compress tools) over stdio; the browser and VS Code extensions bundle the very same engine so behavior is identical everywhere.
+
+### MCP tools
+
+The server exposes four tools to any MCP-compatible client:
+
+| Tool | What it does |
+|---|---|
+| `scan_prompt` | Detects secrets and PII. Returns findings with location, severity, and explanation, plus an optional redacted version (`mode: "warn"` or `"redact"`). |
+| `optimize_prompt` | Suggests a tightened rewrite and flags missing structure. Stays silent on already-good prompts. |
+| `compress_prompt` | Aggressive token reduction at `light`, `medium`, or `aggressive` levels. Preserves code blocks. |
+| `estimate_cost` | Token count and dollar estimate for a given `model`, with an optional `expectedOutputTokens` override. |
+
+(A `ping` health-check tool is also exposed so a client can confirm the server is alive.)
+
+## Install and use
+
+The simplest setup uses `npx`, so there is no manual install.
+
+### Requirements
+
+- Node.js 20 or later
+- Any MCP-compatible client speaking the Model Context Protocol over stdio
 
 ### Claude Desktop
 
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or the equivalent path on Windows / Linux:
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), or the equivalent path on Windows / Linux:
 
 ```json
 {
@@ -47,11 +110,11 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 }
 ```
 
-Restart Claude Desktop. The PromptGuard tools become available immediately.
+Restart Claude Desktop and the PromptGuard tools become available immediately.
 
 ### Cursor
 
-Cursor reads MCP servers from `~/.cursor/mcp.json`. Same config shape:
+Cursor reads MCP servers from `~/.cursor/mcp.json`, with the same config shape:
 
 ```json
 {
@@ -66,7 +129,7 @@ Cursor reads MCP servers from `~/.cursor/mcp.json`. Same config shape:
 
 ### Continue.dev
 
-In your Continue config (`~/.continue/config.json`), add an MCP server entry:
+In `~/.continue/config.json`, add an MCP server entry:
 
 ```json
 {
@@ -86,11 +149,11 @@ In your Continue config (`~/.continue/config.json`), add an MCP server entry:
 
 ### Cline / Windsurf / Goose
 
-These also accept the standard MCP stdio config. Add a server entry pointing at `npx -y @promptguardapp/mcp` and you are good.
+These accept the standard MCP stdio config. Add a server entry pointing at `npx -y @promptguardapp/mcp` and you are set.
 
-### node / npx not on PATH
+### If node or npx are not on PATH
 
-If `node` or `npx` are not on the client's PATH (common when Node is installed via nvm), use absolute paths:
+Common when Node is installed via nvm. Use absolute paths (run `which npx` to find yours):
 
 ```json
 {
@@ -103,28 +166,21 @@ If `node` or `npx` are not on the client's PATH (common when Node is installed v
 }
 ```
 
-Run `which npx` in a terminal to find your path.
+### Using the tools
 
-## Usage
-
-In any client, ask the model to use the tools by name. For example:
+In any client, ask the model to use a tool by name:
 
 - "Use scan_prompt on this text: ..."
 - "Use compress_prompt on this prompt at aggressive level."
 - "Use estimate_cost to compare gpt-4o-mini and claude-sonnet-4-6 for this prompt."
 
-The model will call the appropriate tool and present the result inline.
+The model calls the tool and presents the result inline.
 
-## Requirements
+### Claude Code hook (scan every prompt automatically)
 
-- Node.js 20 or later
-- Any MCP-compatible client (Claude Desktop, Cursor, Cline, Windsurf, Continue.dev, Goose, or any other client speaking the Model Context Protocol over stdio)
+If you use [Claude Code](https://docs.claude.com/en/docs/claude-code), install PromptGuard as a `UserPromptSubmit` hook so every prompt you type is scanned before it is sent. No tool call, no per-prompt action. Clean prompts pass through silently; if something is caught, you see an inline warning. The hook never blocks the prompt, it only warns, and you decide whether to retry redacted.
 
-## Claude Code hook (automatic scanning of every prompt you send)
-
-If you use [Claude Code](https://docs.claude.com/en/docs/claude-code) (the CLI), you can install PromptGuard as a `UserPromptSubmit` hook so every prompt you type gets scanned automatically before it is sent. No tool call required, no per-prompt action by you. If the scanner finds nothing, the prompt goes through silently. If it finds something, you see an inline warning listing what was caught.
-
-Edit `~/.claude/settings.json` and add this block (merge with existing `hooks` if you have one):
+Edit `~/.claude/settings.json` and merge in:
 
 ```json
 {
@@ -144,19 +200,45 @@ Edit `~/.claude/settings.json` and add this block (merge with existing `hooks` i
 }
 ```
 
-That is the entire install. The first time you submit a prompt, `npx` downloads `@promptguardapp/mcp` and caches it. From then on, every prompt is scanned in roughly 50 ms.
+The first prompt triggers `npx` to download and cache the package; after that, each prompt is scanned in roughly 50 ms.
 
-The hook never blocks your prompt. It only warns. You decide whether to retry redacted.
+### Browser extension
 
-## Browser extension
+PromptGuard also ships as a browser extension that scans prompts inline on AI chat sites (Claude.ai, ChatGPT, Gemini, Perplexity, You.com, Mistral). It draws wavy underlines under detected secrets and PII and offers one-click redaction, cost estimation, and prompt optimization. Build it from source and load it unpacked:
 
-Beyond the MCP server, PromptGuard ships as a browser extension that scans prompts inline on AI chat sites (Claude.ai, ChatGPT, Gemini, Perplexity, You.com, Mistral). It draws Grammarly-style wavy underlines under detected secrets and PII, and offers one-click redaction, cost estimation, and prompt optimization.
+```bash
+npm install
+npm run extension:build
+```
 
-See [`extension/README.md`](./extension/README.md) for install instructions and architecture details.
+Then load the `extension/` directory as an unpacked extension in Chrome (`chrome://extensions`, Developer mode, Load unpacked). Full instructions and architecture are in [`extension/README.md`](./extension/README.md).
+
+### VS Code extension
+
+The VS Code extension scans the active document (and re-scans on save), drawing squiggles under matches and listing them in the Problems panel. Build it from source:
+
+```bash
+npm install
+npm run vscode:build
+```
+
+Then press `F5` in VS Code to launch an Extension Development Host with PromptGuard loaded. Details in [`vscode-extension/README.md`](./vscode-extension/README.md).
+
+## Configuration
+
+PromptGuard is intentionally low-config. The behavior you can control:
+
+- **scan_prompt `mode`:** `warn` (default) returns raw matches; `redact` returns a copy of the text with each finding replaced by a `[REDACTED:<type>]` placeholder.
+- **compress_prompt `level`:** `light` (filler and verbose phrases only), `medium` (default, also drops connector adverbs and meta-commentary), or `aggressive` (also strips articles after task verbs and rewrites restate-the-question patterns).
+- **estimate_cost `model`:** one of `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`, `gpt-4o`, `gpt-4o-mini`. Optional `expectedOutputTokens` overrides the default output estimate of `min(inputTokens, 1024)`.
+
+Detection rules live in `src/detectors/rules.ts` (secrets) and `src/detectors/pii-rules.ts` (PII). Each rule carries its own severity, confidence, explanation, and optional validator, so adding or tuning a pattern is a small, local edit.
+
+The VS Code extension adds editor settings (`promptguard.scanOnOpen`, `promptguard.scanOnSave`, `promptguard.showStatusBar`); see its README.
 
 ## Development
 
-Clone the repository if you want to contribute or run from source:
+Clone and run from source:
 
 ```bash
 git clone https://github.com/KrishOjha1810/promptguard-mcp.git
@@ -166,19 +248,30 @@ npm run build
 npm test
 ```
 
-Scripts available:
+Available scripts:
 
 ```bash
-npm run dev               # Run MCP server from source via tsx
-npm run build             # Compile to dist/
-npm run test              # Run the full test suite
-npm run typecheck         # Type check without emitting
+npm run dev               # Run the MCP server from source via tsx
+npm run build             # Compile TypeScript to dist/
+npm test                  # Run the full test suite (vitest)
+npm run test:watch        # Run tests in watch mode
+npm run typecheck         # Type-check without emitting
 npm run extension:build   # Build the browser extension
-npm run extension:watch   # Watch and rebuild extension on changes
+npm run extension:watch   # Watch and rebuild the extension on changes
 npm run extension:icons   # Regenerate PNG icons from icon.svg
 npm run extension:zip     # Produce a Chrome Web Store-ready ZIP
+npm run vscode:build      # Build the VS Code extension
+npm run vscode:watch      # Watch and rebuild the VS Code extension
 ```
+
+The test suite covers secret detection, universal and US PII, India-specific PII (including the Verhoeff Aadhaar checksum), token counting and cost math across all supported models, and the optimize and compress behavior (including the silent-on-good-prompt path and code-block preservation).
+
+## Privacy
+
+PromptGuard is local-first by design. The MCP server runs in-process over stdio and reaches no network of its own. The browser extension has no backend, no telemetry, no analytics, and no accounts; the only thing it stores is an in-memory list of finding signatures you choose to ignore for the current session, which is discarded when the tab closes. Its whole purpose is to warn you about sensitive content *before* you submit, while the text is still on your machine. The full policy is in [`privacy.md`](./privacy.md), and the source is open so you can verify every claim.
 
 ## License
 
 MIT. See [LICENSE](./LICENSE) for the full text.
+
+Copyright (c) 2026 Krish Ojha.

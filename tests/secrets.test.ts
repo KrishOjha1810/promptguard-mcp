@@ -12,6 +12,12 @@ const FAKE = {
   googleApi: "AIza" + "EXAMPLEFAKETESTKEY00000000000000000",
   pemHeader: "-----BEGIN RSA PRIVATE KEY-----",
   npmToken: "npm" + "_EXAMPLEFAKETESTKEYDONOTUSE0000000000",
+  dbConnString:
+    "mongodb+srv://" + "appuser:" + "p".repeat(12) + "@cluster.example.mongodb.net/app",
+  slackWebhook:
+    "https://hooks.slack.com/services/" + "T00000000/B00000000/" + "X".repeat(24),
+  sendgridKey: "SG." + "A".repeat(22) + "." + "B".repeat(43),
+  jwt: "eyJ" + "A".repeat(20) + ".eyJ" + "B".repeat(20) + "." + "C".repeat(20),
 };
 
 describe("scanForSecrets", () => {
@@ -65,6 +71,39 @@ describe("scanForSecrets", () => {
   it("detects a PEM private key header", () => {
     const result = scanForSecrets(`${FAKE.pemHeader}\nMIIEowIBAA...`);
     expect(result.findings.some((f) => f.type === "pem_private_key")).toBe(true);
+  });
+
+  it("detects a database connection string with inline credentials", () => {
+    const result = scanForSecrets(`DATABASE_URL=${FAKE.dbConnString}`);
+    const f = result.findings.find((f) => f.type === "db_connection_string");
+    expect(f).toBeTruthy();
+    expect(f?.severity).toBe("critical");
+  });
+
+  it("does not flag a connection string without credentials", () => {
+    const result = scanForSecrets("mongodb://localhost:27017/app");
+    expect(result.findings.some((f) => f.type === "db_connection_string")).toBe(
+      false,
+    );
+  });
+
+  it("detects a Slack incoming webhook URL", () => {
+    const result = scanForSecrets(`SLACK_WEBHOOK=${FAKE.slackWebhook}`);
+    expect(result.findings.some((f) => f.type === "slack_webhook_url")).toBe(
+      true,
+    );
+  });
+
+  it("detects a SendGrid API key", () => {
+    const result = scanForSecrets(`SENDGRID_API_KEY=${FAKE.sendgridKey}`);
+    expect(result.findings.some((f) => f.type === "sendgrid_api_key")).toBe(
+      true,
+    );
+  });
+
+  it("detects a JSON Web Token", () => {
+    const result = scanForSecrets(`Authorization: Bearer ${FAKE.jwt}`);
+    expect(result.findings.some((f) => f.type === "jwt")).toBe(true);
   });
 
   it("detects multiple secrets in one prompt", () => {

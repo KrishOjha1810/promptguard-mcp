@@ -15,8 +15,11 @@ import {
 } from "./cost.js";
 import { optimizePrompt } from "./optimize.js";
 import { compressPrompt, type CompressionLevel } from "./compress.js";
+import { createRequire } from "node:module";
 
-const PROMPTGUARD_VERSION = "0.0.1";
+// Read the version from package.json so it never drifts from the published build.
+const require = createRequire(import.meta.url);
+const PROMPTGUARD_VERSION: string = require("../package.json").version;
 
 const server = new Server(
   {

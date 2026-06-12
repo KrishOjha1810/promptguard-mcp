@@ -120,4 +120,42 @@ export const SECRET_RULES: Rule[] = [
     explanation:
       "Private key in PEM format. Private keys must never be shared or transmitted.",
   },
+  {
+    id: "db_connection_string",
+    name: "Database Connection String with Credentials",
+    pattern:
+      /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|rediss?|amqp):\/\/[^\s:/@]+:[^\s:/@]+@[^\s/]+/gi,
+    severity: "critical",
+    confidence: 0.95,
+    explanation:
+      "Database connection string with an inline username and password (for example mongodb+srv://user:pass@host). Exposes direct database access and should never appear in a prompt.",
+  },
+  {
+    id: "slack_webhook_url",
+    name: "Slack Incoming Webhook URL",
+    pattern:
+      /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+/g,
+    severity: "high",
+    confidence: 0.98,
+    explanation:
+      "Slack incoming webhook URL. Anyone holding this URL can post messages into the connected channel.",
+  },
+  {
+    id: "sendgrid_api_key",
+    name: "SendGrid API Key",
+    pattern: /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/g,
+    severity: "critical",
+    confidence: 0.99,
+    explanation:
+      "SendGrid API key. Authorizes sending email and managing the connected SendGrid account.",
+  },
+  {
+    id: "jwt",
+    name: "JSON Web Token (JWT)",
+    pattern: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+    severity: "medium",
+    confidence: 0.8,
+    explanation:
+      "JSON Web Token. May carry an authenticated session or identity claims, so treat it as a credential.",
+  },
 ];
