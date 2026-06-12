@@ -51,6 +51,7 @@ We did deep research before building. In plain terms:
 - The pain is real. GitGuardian found 24,008 secrets sitting in public MCP config files in 2025. The MCPTox academic benchmark showed the best AI models obey poisoned tools 30 to 70 percent of the time.
 - A giant already owns the obvious version. Snyk bought the startup that invented "tool poisoning" and shipped an enterprise product (static scan + CI gate + runtime enforcement). We cannot beat Snyk at the enterprise game.
 - But Snyk structurally cannot be the free, local, no-account tool an individual developer installs themselves. Their business needs a cloud account and your data on their servers. Ours runs entirely on your laptop and sends nothing.
+- Honest correction: we are NOT the only free local scanner. mcp-watch and mcp-shield already do one-time pre-install scanning, locally and free. So our moat is not "local," it is being ALWAYS ON: continuous rug-pull monitoring and a local flight recorder of what the agent did at runtime. Those recurring jobs are what the one-shot scanners do not do.
 
 Strategy: win bottom-up, the same way Snyk itself beat the old incumbents. Be the tool individual developers love and install on their own, where the top-down enterprise player cannot follow, then grow up.
 

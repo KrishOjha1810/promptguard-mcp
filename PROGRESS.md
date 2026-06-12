@@ -59,7 +59,19 @@ Note on AgentDojo: integrated as inspiration and format, not as a runtime pip de
 - npm `files` now includes `bench/corpus.json` so `scan-mcp bench` works from an npx install.
 Build + typecheck clean, 101 tests green.
 
-## All four phases complete. Summary of what shipped
+## Chapter 2: always-on (rug-pull monitor + flight recorder). IN PROGRESS.
+
+Strategy correction (from competitive scout + the Delta-4 eval): one-shot pre-install scanning is a commodity (mcp-watch, mcp-shield, Invariant mcp-scan already do it; mcp-scan even hash-pins). We do NOT win on "local." We win on being ALWAYS ON: continuous rug-pull monitoring with a human diff, and a local runtime flight recorder. Docs corrected to name the real rivals.
+
+Scout-driven build priority:
+- R1: rug-pull monitor upgrade. Per-field normalized (JCS + SHA-256) hashing; human-readable git-diffable pins; field-level diff showing WHAT changed; severity-tiered (silent on cosmetic, escalate to critical when a changed description trips the poisoning rules). Beats mcp-scan's single opaque "hash changed".
+- R2: flight recorder. Read OTel tool-call spans (gen_ai.* / mcp.*), scan arguments AND results (result-side secrets + exfil domains), detect cross-call toxic flows (read-secret then send-external), write an IETF-AAT-conformant hash-chained JSONL log with genesis + session-close, plus verify and Article-12 export.
+- Deferred: local ONNX semantic layer; ECDSA signing; proxy/block mode.
+
+### R0: honesty doc fixes. DONE.
+Corrected the false "we are the only local one" framing in TEAM-BRIEF.md and ONBOARDING.md: named mcp-watch and mcp-shield as real free local rivals, re-anchored the moat on always-on depth, not local.
+
+## Chapter 1: all four phases complete. Summary of what shipped
 - scan-mcp: local MCP security scanner (secrets, tool poisoning, full-schema, hidden unicode, shadowing) with human/SARIF/JSON output and a CI gate.
 - Rug-pull detection via local pinning (the signature, local-first advantage).
 - Reproducible benchmark corpus + runner (regression gate, OSS-standard seed).
