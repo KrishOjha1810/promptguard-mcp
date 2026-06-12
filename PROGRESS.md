@@ -68,6 +68,12 @@ Scout-driven build priority:
 - R2: flight recorder. Read OTel tool-call spans (gen_ai.* / mcp.*), scan arguments AND results (result-side secrets + exfil domains), detect cross-call toxic flows (read-secret then send-external), write an IETF-AAT-conformant hash-chained JSONL log with genesis + session-close, plus verify and Article-12 export.
 - Deferred: local ONNX semantic layer; ECDSA signing; proxy/block mode.
 
+### R1: rug-pull monitor upgrade. DONE.
+Per-field JCS+SHA-256 hashing, readable git-diffable pins, field-level diff, severity tiering (cosmetic silent; benign description change medium; malicious description change critical via poisoning rules; schema growth high; annotation flip high). 6 tests.
+
+### R2: flight recorder. DONE.
+`src/mcp-scan/recorder.ts` + `scan-mcp record` / `verify`. Reads OTel tool-call spans (flat or OTLP attribute shapes, behind a mapping layer for convention churn). Detects: secrets in tool arguments AND results (the runtime class a static scan cannot see), suspicious exfiltration sink domains (webhook.site, tunnels, raw IPs), and cross-call toxic flows (sensitive read then external send, the multi-call detection static scanners structurally cannot do). Writes an IETF-AAT-conformant hash-chained JSONL audit log (genesis + per-call + session-close with session_hash, all 11 mandatory fields, L0-L4 trust levels), a `verify` command that detects any tampering, and an EU AI Act Article 12 export. Demo at `examples/agent-trace.jsonl` -> 2 critical (PEM key in result, toxic flow) + 1 high (sink). 9 tests. Suite at 116 green, typecheck clean.
+
 ### R0: honesty doc fixes. DONE.
 Corrected the false "we are the only local one" framing in TEAM-BRIEF.md and ONBOARDING.md: named mcp-watch and mcp-shield as real free local rivals, re-anchored the moat on always-on depth, not local.
 

@@ -4,6 +4,13 @@ import { toSarif } from "./sarif.js";
 import { buildLock, diffAgainstLock, type Lockfile } from "./pinning.js";
 import { loadCorpus, runBenchmark, defaultCorpusPath } from "./bench.js";
 import { loadManifest, scanRegistry, renderLeaderboard } from "./registry.js";
+import {
+  recordTrace,
+  buildAuditLog,
+  serializeLog,
+  verifyLog,
+  exportArticle12,
+} from "./recorder.js";
 import type { McpDocument, McpScanResult } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -61,6 +68,15 @@ Usage:
                                   lockfile of per-tool hashes (<file>.pglock)
   scan-mcp <file> --lockfile <p>  compare against a specific lockfile
   scan-mcp <file> --no-drift      skip rug-pull / drift checking
+  scan-mcp bench [corpus]         run the public benchmark corpus
+  scan-mcp registry <manifest>    render a server safety leaderboard
+
+  Flight recorder (runtime, from the agent's OpenTelemetry tool-call spans):
+  scan-mcp record <trace.jsonl>   scan tool-call args + results, detect toxic
+                                  flows; --log <f> writes a tamper-evident
+                                  hash-chained audit log; --export-aat <f>
+                                  writes an EU AI Act Article 12 export
+  scan-mcp verify <log.jsonl>     check an audit log's hash chain for tampering
 
 Rug-pull detection:
   After 'pin', a later scan compares each tool definition to its approved
@@ -85,6 +101,84 @@ function loadLock(path: string): Lockfile | null {
   } catch {
     return null;
   }
+}
+
+function flagVal(args: string[], flag: string): string | undefined {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+
+function runRecord(args: string[]): number {
+  const file = args.find((a) => !a.startsWith("--"));
+  if (!file) {
+    process.stderr.write("scan-mcp record: provide an OTel trace JSONL file (or --stdin).\n");
+    return 2;
+  }
+  let text: string;
+  try {
+    text = readFileSync(args.includes("--stdin") ? 0 : file, "utf8");
+  } catch {
+    process.stderr.write(`scan-mcp record: could not read ${file}.\n`);
+    return 2;
+  }
+  const result = recordTrace(text);
+  const meta = {
+    agentId: flagVal(args, "--agent-id") ?? "unknown-agent",
+    agentVersion: flagVal(args, "--agent-version") ?? "0",
+    sessionId: flagVal(args, "--session-id") ?? "session",
+  };
+
+  process.stderr.write(
+    `PromptGuard flight recorder  ${file}\n` +
+      `${result.events.length} tool call(s), ${result.findings.length} finding(s)\n\n`,
+  );
+
+  if (result.findings.length === 0) {
+    process.stdout.write("clean: no runtime security issues in this trace.\n");
+  } else {
+    const order: Record<Severity, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+    for (const f of [...result.findings].sort((a, b) => order[b.severity] - order[a.severity])) {
+      process.stdout.write(
+        `[${f.severity.toUpperCase()}] ${f.title} (${f.owasp.join(", ")})\n` +
+          `  at ${f.location}\n  ${f.evidence}\n  ${f.explanation}\n\n`,
+      );
+    }
+  }
+
+  const logOut = flagVal(args, "--log");
+  if (logOut) {
+    writeFileSync(logOut, serializeLog(buildAuditLog(result, meta)));
+    process.stderr.write(`tamper-evident audit log written to ${logOut}\n`);
+  }
+  const aatOut = flagVal(args, "--export-aat");
+  if (aatOut) {
+    writeFileSync(aatOut, JSON.stringify(exportArticle12(result, meta), null, 2) + "\n");
+    process.stderr.write(`EU AI Act Article 12 export written to ${aatOut}\n`);
+  }
+
+  return result.findings.some((f) => f.severity === "critical" || f.severity === "high") ? 1 : 0;
+}
+
+function runVerify(args: string[]): number {
+  const file = args.find((a) => !a.startsWith("--"));
+  if (!file) {
+    process.stderr.write("scan-mcp verify: provide an audit-log JSONL file.\n");
+    return 2;
+  }
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    process.stderr.write(`scan-mcp verify: could not read ${file}.\n`);
+    return 2;
+  }
+  const result = verifyLog(text);
+  if (result.ok) {
+    process.stdout.write("chain intact: every record links to the previous one. No tampering detected.\n");
+    return 0;
+  }
+  process.stdout.write(`CHAIN BROKEN at record ${result.brokenAt}: ${result.reason}\n`);
+  return 1;
 }
 
 function runRegistry(args: string[]): number {
@@ -240,6 +334,14 @@ export function runCli(argv: string[]): number {
 
   if (args[0] === "registry") {
     return runRegistry(args.slice(1));
+  }
+
+  if (args[0] === "record") {
+    return runRecord(args.slice(1));
+  }
+
+  if (args[0] === "verify") {
+    return runVerify(args.slice(1));
   }
 
   const input = readInput(args);

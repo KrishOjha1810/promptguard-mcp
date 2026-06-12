@@ -7,6 +7,9 @@ export type McpFindingCategory =
   | "tool_shadowing"
   | "rug_pull"
   | "drift"
+  | "secret_in_result"
+  | "exfil_domain"
+  | "toxic_flow"
   | "parse_warning";
 
 export type McpFinding = {
