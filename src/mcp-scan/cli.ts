@@ -21,11 +21,35 @@ import {
   parseAnchorToken,
   appendAnchorHistory,
 } from "./signing.js";
+import { hashToken } from "./entropy.js";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 function destinationsPath(): string {
   return join(defaultKeyDir(), "destinations.json");
+}
+
+function allowedTokensPath(): string {
+  return join(defaultKeyDir(), "allowed-tokens.json");
+}
+
+function loadAllowedTokens(): Set<string> {
+  try {
+    const arr = JSON.parse(readFileSync(allowedTokensPath(), "utf8"));
+    if (Array.isArray(arr)) return new Set(arr as string[]);
+  } catch {
+    /* none yet */
+  }
+  return new Set();
+}
+
+function saveAllowedTokens(set: Set<string>): void {
+  try {
+    mkdirSync(defaultKeyDir(), { recursive: true });
+    writeFileSync(allowedTokensPath(), JSON.stringify([...set].sort(), null, 2) + "\n");
+  } catch {
+    /* best effort */
+  }
 }
 
 function loadKnownDestinations(): Set<string> {
@@ -165,7 +189,11 @@ function runRecord(args: string[]): number {
   // first-seen destination receiving tainted data scores critical. Disable with
   // --no-memory (treats every run as the first, denylist-only).
   const known = args.includes("--no-memory") ? new Set<string>() : loadKnownDestinations();
-  const result = recordTrace(text, { knownDestinations: known });
+  const result = recordTrace(text, {
+    knownDestinations: known,
+    detectEntropy: !args.includes("--no-entropy"),
+    allowedTokenHashes: loadAllowedTokens(),
+  });
   if (!args.includes("--no-memory")) {
     for (const d of externalDestinationsIn(result.events)) known.add(d);
     saveKnownDestinations(known);
@@ -458,6 +486,19 @@ export function runCli(argv: string[]): number {
 
   if (args[0] === "anchor") {
     return runAnchor(args.slice(1));
+  }
+
+  if (args[0] === "allow") {
+    const token = args[1];
+    if (!token) {
+      process.stderr.write("scan-mcp allow: provide the token to mark benign.\n");
+      return 2;
+    }
+    const set = loadAllowedTokens();
+    set.add(hashToken(token));
+    saveAllowedTokens(set);
+    process.stdout.write("token marked benign; it will no longer be flagged by entropy detection.\n");
+    return 0;
   }
 
   const input = readInput(args);

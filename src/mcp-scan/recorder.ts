@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { scanText } from "../detectors/secrets.js";
 import { jcsCanonicalize } from "./pinning.js";
 import { signData, verifyData, makeAnchor, type Anchor } from "./signing.js";
+import { findHighEntropyTokens } from "./entropy.js";
 import type { McpFinding } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -157,6 +158,11 @@ export type AnalyzeOptions = {
   // tainted data going to a never-before-seen destination is the real exfil
   // signature, more than any static denylist. Behavioral, not a blocklist.
   knownDestinations?: Set<string>;
+  // Enable entropy-based secret detection (catches encoded/unknown secrets the
+  // named regex rules miss). Off by default to keep base behavior stable.
+  detectEntropy?: boolean;
+  // Token hashes the user marked benign; suppressed from entropy findings.
+  allowedTokenHashes?: Set<string>;
 };
 
 export function analyzeEvents(events: ToolCallEvent[], opts: AnalyzeOptions = {}): McpFinding[] {
@@ -190,6 +196,24 @@ export function analyzeEvents(events: ToolCallEvent[], opts: AnalyzeOptions = {}
               : " Passed as a tool-call argument at runtime."),
           owasp: ["LLM06", "T2"],
         });
+      }
+      // Entropy layer: only when a named rule did NOT already fire on this
+      // field, so we do not double-flag the same secret.
+      if (opts.detectEntropy && res.findings.length === 0) {
+        for (const ef of findHighEntropyTokens(txt, { allowed: opts.allowedTokenHashes })) {
+          findings.push({
+            category: field === "result" ? "secret_in_result" : "secret_in_config",
+            ruleId: "high_entropy_token",
+            title: `Possible secret in tool ${field} (high entropy)`,
+            severity: "medium",
+            confidence: 0.5,
+            location: `${loc}.${field}`,
+            evidence: ef.token.length > 16 ? ef.token.slice(0, 12) + "..." : ef.token,
+            explanation:
+              `A ${ef.reason} that matches no known key format but looks like a credential. Lower confidence than a named rule. If benign, run 'scan-mcp allow <token>' to suppress it.`,
+            owasp: ["LLM06"],
+          });
+        }
       }
       // suspicious sink domains
       for (const { domain, raw } of extractDomains(txt)) {
