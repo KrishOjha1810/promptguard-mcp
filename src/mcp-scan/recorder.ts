@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { scanText } from "../detectors/secrets.js";
 import { jcsCanonicalize } from "./pinning.js";
+import { signData, verifyData, makeAnchor, type Anchor } from "./signing.js";
 import type { McpFinding } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -249,10 +250,15 @@ export type AatRecord = {
   trust_level: "L0" | "L1" | "L2" | "L3" | "L4";
   parent_record_id: string | null;
   prev_hash: string | null;
+  signature?: string; // base64 Ed25519 over the record's hash; excluded from the hash itself
 };
 
+// Hash a record EXCLUDING its signature, so the signature can be over the hash
+// without a chicken-and-egg, and so verification recomputes the same value.
 function hashRecord(rec: AatRecord): string {
-  return "sha256:" + createHash("sha256").update(jcsCanonicalize(rec)).digest("hex");
+  const { signature, ...rest } = rec;
+  void signature;
+  return "sha256:" + createHash("sha256").update(jcsCanonicalize(rest)).digest("hex");
 }
 
 function paramsHash(argsText: string): string {
@@ -271,6 +277,7 @@ function trustLevel(findingsForEvent: McpFinding[]): AatRecord["trust_level"] {
 export function buildAuditLog(
   result: RecorderResult,
   meta: { agentId: string; agentVersion: string; sessionId: string },
+  signer?: { privateKeyPem: string; fingerprint: string },
 ): AatRecord[] {
   const records: AatRecord[] = [];
   let prevHash: string | null = null;
@@ -296,13 +303,24 @@ export function buildAuditLog(
       parent_record_id: n === 0 ? null : `${meta.sessionId}-${n - 1}`,
       prev_hash: prevHash,
     };
+    const h = hashRecord(rec);
+    if (signer) rec.signature = signData(h, signer.privateKeyPem);
     records.push(rec);
-    prevHash = hashRecord(rec);
+    prevHash = h;
     n++;
   };
 
-  // Genesis.
-  push("session_start", { tool: "promptguard-recorder" }, "L4", "ok", "(session start)");
+  // Genesis. When signing, record the public-key fingerprint so a verifier
+  // knows which key to check against.
+  push(
+    "session_start",
+    signer
+      ? { tool: "promptguard-recorder", public_key_fingerprint: signer.fingerprint }
+      : { tool: "promptguard-recorder" },
+    "L4",
+    "ok",
+    "(session start)",
+  );
 
   for (const ev of result.events) {
     const evFindings = result.findings.filter((f) => f.location.includes(`tool_call[${ev.index}]`));
@@ -342,10 +360,19 @@ export function serializeLog(records: AatRecord[]): string {
   return records.map((r) => JSON.stringify(r)).join("\n") + "\n";
 }
 
-// Re-walk a hash-chained log; return the first broken link, or null if intact.
-export function verifyLog(text: string): { ok: boolean; brokenAt?: number; reason?: string } {
+// Re-walk a hash-chained log; return the first broken link. If a public key is
+// supplied, also verify each record's Ed25519 signature (catches a rewrite by
+// someone without the key). If a previously recorded anchor is supplied, check
+// the current head still matches it (catches a rewrite by someone WITH the key).
+export function verifyLog(
+  text: string,
+  opts?: { publicKeyPem?: string; anchor?: { recordCount: number; headHash: string } },
+): { ok: boolean; brokenAt?: number; reason?: string; signaturesChecked?: number } {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   let prevHash: string | null = null;
+  let lastHash: string | null = null;
+  let signaturesChecked = 0;
+
   for (let i = 0; i < lines.length; i++) {
     let rec: AatRecord;
     try {
@@ -360,9 +387,46 @@ export function verifyLog(text: string): { ok: boolean; brokenAt?: number; reaso
         reason: `prev_hash mismatch (a record was inserted, removed, or edited at or before line ${i})`,
       };
     }
+    const h = hashRecord(rec);
+    if (opts?.publicKeyPem) {
+      if (!rec.signature) {
+        return { ok: false, brokenAt: i, reason: `record ${i} is unsigned but a key was provided` };
+      }
+      if (!verifyData(h, rec.signature, opts.publicKeyPem)) {
+        return { ok: false, brokenAt: i, reason: `invalid signature on record ${i} (forged or wrong key)` };
+      }
+      signaturesChecked++;
+    }
+    prevHash = h;
+    lastHash = h;
+  }
+
+  if (opts?.anchor) {
+    if (lines.length !== opts.anchor.recordCount || lastHash !== opts.anchor.headHash) {
+      return {
+        ok: false,
+        reason: `head does not match the recorded anchor (the log was rewritten after anchoring: expected ${opts.anchor.recordCount} records ending ${opts.anchor.headHash?.slice(0, 22)}..., got ${lines.length} ending ${lastHash?.slice(0, 22)}...)`,
+      };
+    }
+  }
+
+  return { ok: true, signaturesChecked };
+}
+
+// Compute an externally-recordable anchor for a serialized log.
+export function computeAnchor(text: string): Anchor {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  let prevHash: string | null = null;
+  let fingerprint: string | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const rec = JSON.parse(lines[i]) as AatRecord;
+    if (i === 0) {
+      const fp = (rec.action_detail as { public_key_fingerprint?: string }).public_key_fingerprint;
+      fingerprint = fp ?? null;
+    }
     prevHash = hashRecord(rec);
   }
-  return { ok: true };
+  return makeAnchor(prevHash ?? "(empty)", lines.length, fingerprint);
 }
 
 // A simplified EU AI Act Article 12-shaped export: the operation-level record

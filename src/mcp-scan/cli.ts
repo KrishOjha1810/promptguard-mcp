@@ -10,7 +10,16 @@ import {
   serializeLog,
   verifyLog,
   exportArticle12,
+  computeAnchor,
 } from "./recorder.js";
+import {
+  ensureKeypair,
+  loadPublicKey,
+  defaultPublicKeyPath,
+  parseAnchorToken,
+  appendAnchorHistory,
+} from "./signing.js";
+import { existsSync } from "node:fs";
 import type { McpDocument, McpScanResult } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -73,10 +82,15 @@ Usage:
 
   Flight recorder (runtime, from the agent's OpenTelemetry tool-call spans):
   scan-mcp record <trace.jsonl>   scan tool-call args + results, detect toxic
-                                  flows; --log <f> writes a tamper-evident
-                                  hash-chained audit log; --export-aat <f>
-                                  writes an EU AI Act Article 12 export
-  scan-mcp verify <log.jsonl>     check an audit log's hash chain for tampering
+                                  flows; --log <f> writes a hash-chained audit
+                                  log; --sign signs each record (Ed25519, local
+                                  key); --export-aat <f> writes an EU AI Act
+                                  Article 12 export
+  scan-mcp verify <log.jsonl>     check the hash chain for tampering; --key <p>
+                                  also verifies signatures; --anchor <token>
+                                  checks the head matches a recorded anchor
+  scan-mcp anchor <log.jsonl>     print an externally-recordable anchor token
+                                  for the chain head
 
 Rug-pull detection:
   After 'pin', a later scan compares each tool definition to its approved
@@ -147,8 +161,22 @@ function runRecord(args: string[]): number {
 
   const logOut = flagVal(args, "--log");
   if (logOut) {
-    writeFileSync(logOut, serializeLog(buildAuditLog(result, meta)));
-    process.stderr.write(`tamper-evident audit log written to ${logOut}\n`);
+    const signer = args.includes("--sign")
+      ? (() => {
+          const kp = ensureKeypair();
+          return { privateKeyPem: kp.privateKeyPem, fingerprint: kp.fingerprint };
+        })()
+      : undefined;
+    const records = buildAuditLog(result, meta, signer);
+    writeFileSync(logOut, serializeLog(records));
+    const anchor = computeAnchor(serializeLog(records));
+    appendAnchorHistory(anchor);
+    process.stderr.write(
+      `audit log written to ${logOut}` +
+        (signer ? ` (signed, key ${signer.fingerprint})` : " (unsigned)") +
+        `\nanchor: ${anchor.token}\n` +
+        `record that anchor externally (commit it, write it down) to detect later rewrites\n`,
+    );
   }
   const aatOut = flagVal(args, "--export-aat");
   if (aatOut) {
@@ -172,13 +200,63 @@ function runVerify(args: string[]): number {
     process.stderr.write(`scan-mcp verify: could not read ${file}.\n`);
     return 2;
   }
-  const result = verifyLog(text);
+  // Optional signature check: explicit --key, or the default local public key
+  // if one exists.
+  let publicKeyPem: string | undefined;
+  const keyPath = flagVal(args, "--key");
+  if (keyPath) {
+    try {
+      publicKeyPem = loadPublicKey(keyPath);
+    } catch {
+      process.stderr.write(`scan-mcp verify: could not read key ${keyPath}.\n`);
+      return 2;
+    }
+  } else if (existsSync(defaultPublicKeyPath())) {
+    publicKeyPem = loadPublicKey(defaultPublicKeyPath());
+  }
+
+  const anchorTok = flagVal(args, "--anchor");
+  const anchor = anchorTok ? parseAnchorToken(anchorTok) ?? undefined : undefined;
+  if (anchorTok && !anchor) {
+    process.stderr.write("scan-mcp verify: --anchor value is not a valid pg-anchor token.\n");
+    return 2;
+  }
+
+  const result = verifyLog(text, { publicKeyPem, anchor });
   if (result.ok) {
-    process.stdout.write("chain intact: every record links to the previous one. No tampering detected.\n");
+    const parts = ["chain intact: every record links to the previous one"];
+    if (result.signaturesChecked) parts.push(`${result.signaturesChecked} signature(s) valid`);
+    if (anchor) parts.push("head matches the recorded anchor");
+    process.stdout.write(parts.join("; ") + ". No tampering detected.\n");
     return 0;
   }
-  process.stdout.write(`CHAIN BROKEN at record ${result.brokenAt}: ${result.reason}\n`);
+  process.stdout.write(
+    `TAMPERING DETECTED${result.brokenAt !== undefined ? ` at record ${result.brokenAt}` : ""}: ${result.reason}\n`,
+  );
   return 1;
+}
+
+function runAnchor(args: string[]): number {
+  const file = args.find((a) => !a.startsWith("--"));
+  if (!file) {
+    process.stderr.write("scan-mcp anchor: provide an audit-log JSONL file.\n");
+    return 2;
+  }
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    process.stderr.write(`scan-mcp anchor: could not read ${file}.\n`);
+    return 2;
+  }
+  const anchor = computeAnchor(text);
+  appendAnchorHistory(anchor);
+  process.stdout.write(anchor.token + "\n");
+  process.stderr.write(
+    "Record this token somewhere the log's writer cannot change (a git commit, a note).\n" +
+      "Later: scan-mcp verify <log> --anchor <token> proves it was not rewritten.\n",
+  );
+  return 0;
 }
 
 function runRegistry(args: string[]): number {
@@ -342,6 +420,10 @@ export function runCli(argv: string[]): number {
 
   if (args[0] === "verify") {
     return runVerify(args.slice(1));
+  }
+
+  if (args[0] === "anchor") {
+    return runAnchor(args.slice(1));
   }
 
   const input = readInput(args);
