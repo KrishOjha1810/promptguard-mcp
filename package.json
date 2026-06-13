@@ -1,6 +1,6 @@
 {
   "name": "@promptguardapp/mcp",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "Local-first MCP server that scans developer prompts for secrets, PII, and cost before they hit the LLM.",
   "type": "module",
   "bin": {
