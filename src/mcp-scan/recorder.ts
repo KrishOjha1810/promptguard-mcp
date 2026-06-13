@@ -152,8 +152,16 @@ export type RecorderResult = {
   findings: McpFinding[];
 };
 
-export function analyzeEvents(events: ToolCallEvent[]): McpFinding[] {
+export type AnalyzeOptions = {
+  // Domains seen in prior sessions. When provided, novelty drives severity:
+  // tainted data going to a never-before-seen destination is the real exfil
+  // signature, more than any static denylist. Behavioral, not a blocklist.
+  knownDestinations?: Set<string>;
+};
+
+export function analyzeEvents(events: ToolCallEvent[], opts: AnalyzeOptions = {}): McpFinding[] {
   const findings: McpFinding[] = [];
+  const known = opts.knownDestinations;
 
   // Per-event: secrets in arguments and results, suspicious sink domains.
   const sawSensitiveReadBefore: { index: number; what: string }[] = [];
@@ -233,8 +241,16 @@ export function analyzeEvents(events: ToolCallEvent[]): McpFinding[] {
 
     if (sendsExternal && priorRead) {
       const toSuspiciousSink = egressDomains.some((d) => isExternalSink(d.domain));
+      // Novelty: a destination not seen in prior sessions is the strong signal.
+      const novel = known ? egressDomains.some((d) => !known.has(d.domain)) : false;
+      const critical = toSuspiciousSink || novel;
       const dests = egressDomains.map((d) => d.domain);
       const hops = ev.index - priorRead.index - 1;
+      const why = toSuspiciousSink
+        ? "a known exfiltration sink"
+        : novel
+          ? "a destination never seen in prior sessions (first-seen egress of sensitive data)"
+          : "an external destination";
       findings.push({
         category: "toxic_flow",
         ruleId: "read_then_exfiltrate",
@@ -242,14 +258,14 @@ export function analyzeEvents(events: ToolCallEvent[]): McpFinding[] {
           hops > 0
             ? `Toxic flow: sensitive read, ${hops} hop(s), then external send`
             : `Toxic flow: sensitive read then external send`,
-        severity: toSuspiciousSink ? "critical" : "high",
-        confidence: toSuspiciousSink ? 0.8 : 0.6,
+        severity: critical ? "critical" : "high",
+        confidence: critical ? 0.8 : 0.6,
         location: `tool_call[${priorRead.index}] ${priorRead.what} -> tool_call[${ev.index}] ${ev.toolName}`,
         evidence:
-          `${priorRead.what} (sensitive) then ${ev.toolName} to ${dests.join(", ") || "an external destination"}` +
-          (hops > 0 ? ` (${hops} intermediate call(s) between)` : ""),
+          `${priorRead.what} (sensitive) then ${ev.toolName} to ${dests.join(", ") || "an external destination"} (${why})` +
+          (hops > 0 ? ` [${hops} intermediate call(s)]` : ""),
         explanation:
-          "A tool that touched sensitive data was followed, later in the session, by a tool that sends data to an external destination. Taint is tracked across calls, so this fires even when benign tools sit between the read and the send. Critical when the destination is a known exfiltration sink, high otherwise.",
+          "A tool that touched sensitive data was followed, later in the session, by a tool that sends data out. Taint is tracked across calls, so this fires even when benign tools sit between. Severity is driven by where the data went: critical to a known sink or a never-before-seen destination, high to a destination you have sent to before.",
         owasp: ["LLM06", "T2"],
       });
     }
@@ -258,9 +274,23 @@ export function analyzeEvents(events: ToolCallEvent[]): McpFinding[] {
   return findings;
 }
 
-export function recordTrace(text: string): RecorderResult {
+// All external (non-internal) destination domains referenced anywhere in the
+// trace, for persisting into the known-destinations store.
+export function externalDestinationsIn(events: ToolCallEvent[]): string[] {
+  const set = new Set<string>();
+  for (const ev of events) {
+    for (const txt of [ev.argumentsText, ev.resultText]) {
+      for (const { domain } of extractDomains(txt)) {
+        if (!isInternalDomain(domain)) set.add(domain);
+      }
+    }
+  }
+  return [...set];
+}
+
+export function recordTrace(text: string, opts: AnalyzeOptions = {}): RecorderResult {
   const events = ingestTrace(text);
-  return { events, findings: analyzeEvents(events) };
+  return { events, findings: analyzeEvents(events, opts) };
 }
 
 // ---------------------------------------------------------------------------

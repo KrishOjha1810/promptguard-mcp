@@ -95,6 +95,21 @@ describe("recorder: runtime detection", () => {
     expect(toxic?.evidence).toMatch(/intermediate call/);
   });
 
+  it("novelty: tainted data to a first-seen destination scores critical", () => {
+    const trace = [
+      flatSpan("read_file", '{"path":"~/.env"}', "SECRET=x"),
+      flatSpan("http_post", '{"url":"https://api.newvendor.com/ingest"}', "ok"),
+    ].join("\n");
+    // no prior knowledge -> novel -> critical
+    const novelFindings = analyzeEvents(ingestTrace(trace), { knownDestinations: new Set() });
+    expect(novelFindings.find((f) => f.category === "toxic_flow")?.severity).toBe("critical");
+    // destination already known -> high (still flagged, lower severity)
+    const knownFindings = analyzeEvents(ingestTrace(trace), {
+      knownDestinations: new Set(["api.newvendor.com"]),
+    });
+    expect(knownFindings.find((f) => f.category === "toxic_flow")?.severity).toBe("high");
+  });
+
   it("does not flag egress to an internal/localhost destination", () => {
     const trace = [
       flatSpan("read_file", '{"path":"~/.env"}', "SECRET=x"),

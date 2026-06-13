@@ -11,15 +11,41 @@ import {
   verifyLog,
   exportArticle12,
   computeAnchor,
+  externalDestinationsIn,
 } from "./recorder.js";
 import {
   ensureKeypair,
   loadPublicKey,
   defaultPublicKeyPath,
+  defaultKeyDir,
   parseAnchorToken,
   appendAnchorHistory,
 } from "./signing.js";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+
+function destinationsPath(): string {
+  return join(defaultKeyDir(), "destinations.json");
+}
+
+function loadKnownDestinations(): Set<string> {
+  try {
+    const arr = JSON.parse(readFileSync(destinationsPath(), "utf8"));
+    if (Array.isArray(arr)) return new Set(arr as string[]);
+  } catch {
+    /* none yet */
+  }
+  return new Set();
+}
+
+function saveKnownDestinations(set: Set<string>): void {
+  try {
+    mkdirSync(defaultKeyDir(), { recursive: true });
+    writeFileSync(destinationsPath(), JSON.stringify([...set].sort(), null, 2) + "\n");
+  } catch {
+    /* best effort */
+  }
+}
 import type { McpDocument, McpScanResult } from "./types.js";
 import type { Severity } from "../types.js";
 
@@ -135,7 +161,15 @@ function runRecord(args: string[]): number {
     process.stderr.write(`scan-mcp record: could not read ${file}.\n`);
     return 2;
   }
-  const result = recordTrace(text);
+  // Behavioral novelty: load destinations seen in prior sessions so a
+  // first-seen destination receiving tainted data scores critical. Disable with
+  // --no-memory (treats every run as the first, denylist-only).
+  const known = args.includes("--no-memory") ? new Set<string>() : loadKnownDestinations();
+  const result = recordTrace(text, { knownDestinations: known });
+  if (!args.includes("--no-memory")) {
+    for (const d of externalDestinationsIn(result.events)) known.add(d);
+    saveKnownDestinations(known);
+  }
   const meta = {
     agentId: flagVal(args, "--agent-id") ?? "unknown-agent",
     agentVersion: flagVal(args, "--agent-version") ?? "0",
