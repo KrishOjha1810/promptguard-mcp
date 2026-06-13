@@ -177,6 +177,8 @@ Three layers, honestly scoped:
 
 Tamper-and-catch in practice: a signed log verifies as "chain intact; signatures valid; head matches the recorded anchor"; edit a single record and `verify` reports "invalid signature on record N" and exits non-zero.
 
+See the whole thing run end to end: [`DEMO.md`](./DEMO.md) is a captured transcript, and `bash scripts/demo.sh` runs it live (catch a runtime toxic flow and a leaked private key, sign and anchor the log, then tamper one record and watch verify break at the exact line).
+
 ### Optional: continuous MCP monitoring at session start (Claude Code)
 
 Add a SessionStart hook to `~/.claude/settings.json`. It statically scans your MCP config and runs the always-on rug-pull monitor every time a session begins:
