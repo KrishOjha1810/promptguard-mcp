@@ -132,6 +132,21 @@ function isExternalSink(domain: string): boolean {
   return SUSPICIOUS_SINKS.some((s) => domain.includes(s));
 }
 
+// Internal / non-egress destinations that do not count as data leaving.
+function isInternalDomain(domain: string): boolean {
+  return (
+    domain === "localhost" ||
+    domain.endsWith(".local") ||
+    domain.endsWith(".internal") ||
+    domain === "127.0.0.1" ||
+    domain === "0.0.0.0" ||
+    domain.startsWith("10.") ||
+    domain.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(domain)
+  );
+}
+
+
 export type RecorderResult = {
   events: ToolCallEvent[];
   findings: McpFinding[];
@@ -187,7 +202,11 @@ export function analyzeEvents(events: ToolCallEvent[]): McpFinding[] {
       }
     }
 
-    // Track sensitive reads for cross-call toxic-flow detection.
+    // TAINT PROPAGATION. Once any call touches sensitive data, the session is
+    // "tainted": any later external egress is suspect, no matter how many
+    // benign tools sit between the read and the send. This survives the evasion
+    // that defeats a simple read-then-immediately-send pair (read, summarize,
+    // transform, then send), because the taint persists across hops.
     const readsSensitive =
       SENSITIVE_SOURCE_RE.test(ev.toolName) ||
       SENSITIVE_SOURCE_RE.test(ev.argumentsText) ||
@@ -196,25 +215,41 @@ export function analyzeEvents(events: ToolCallEvent[]): McpFinding[] {
       sawSensitiveReadBefore.push({ index: ev.index, what: ev.toolName });
     }
 
-    // If THIS call sends externally and a sensitive read happened earlier, that
-    // is a toxic flow: read-secret then send-out. Static scanners cannot see
-    // this because it spans multiple calls.
+    // Egress = data leaving to an external destination. Broadened beyond
+    // send-named tools: ANY call carrying an external domain counts, since
+    // exfiltration often hides in a non-obvious tool (a "search query", a
+    // "commit message") rather than a tool literally named "send". But if the
+    // only destinations present are internal/localhost, that is not egress,
+    // even for a send-named tool. A send-named tool with NO parseable
+    // destination is treated as potential egress to an opaque sink.
+    const allDomains = [
+      ...extractDomains(ev.argumentsText),
+      ...extractDomains(ev.resultText),
+    ];
+    const egressDomains = allDomains.filter((d) => !isInternalDomain(d.domain));
     const sendsExternal =
-      SEND_TOOL_RE.test(ev.toolName) &&
-      [...extractDomains(ev.argumentsText), ...extractDomains(ev.resultText)].length > 0;
+      allDomains.length > 0 ? egressDomains.length > 0 : SEND_TOOL_RE.test(ev.toolName);
     const priorRead = sawSensitiveReadBefore.find((r) => r.index < ev.index);
+
     if (sendsExternal && priorRead) {
-      const domains = extractDomains(ev.argumentsText).map((d) => d.domain);
+      const toSuspiciousSink = egressDomains.some((d) => isExternalSink(d.domain));
+      const dests = egressDomains.map((d) => d.domain);
+      const hops = ev.index - priorRead.index - 1;
       findings.push({
         category: "toxic_flow",
         ruleId: "read_then_exfiltrate",
-        title: `Toxic flow: sensitive read then external send`,
-        severity: "critical",
-        confidence: 0.7,
+        title:
+          hops > 0
+            ? `Toxic flow: sensitive read, ${hops} hop(s), then external send`
+            : `Toxic flow: sensitive read then external send`,
+        severity: toSuspiciousSink ? "critical" : "high",
+        confidence: toSuspiciousSink ? 0.8 : 0.6,
         location: `tool_call[${priorRead.index}] ${priorRead.what} -> tool_call[${ev.index}] ${ev.toolName}`,
-        evidence: `${priorRead.what} (sensitive) then ${ev.toolName} to ${domains.join(", ") || "external"}`,
+        evidence:
+          `${priorRead.what} (sensitive) then ${ev.toolName} to ${dests.join(", ") || "an external destination"}` +
+          (hops > 0 ? ` (${hops} intermediate call(s) between)` : ""),
         explanation:
-          "A tool that touched sensitive data was followed by a tool that sends data to an external destination. This read-then-exfiltrate sequence is a classic agent data-leak, and it can only be seen by watching tool calls across the whole session, not one at a time.",
+          "A tool that touched sensitive data was followed, later in the session, by a tool that sends data to an external destination. Taint is tracked across calls, so this fires even when benign tools sit between the read and the send. Critical when the destination is a known exfiltration sink, high otherwise.",
         owasp: ["LLM06", "T2"],
       });
     }
