@@ -150,7 +150,32 @@ It detects things a pre-install scan cannot see:
 - **suspicious exfiltration sinks** (ephemeral collectors, tunnels, raw IPs)
 - **cross-call toxic flows**: a sensitive read followed by an external send, which only shows up when you watch tool calls across the whole session, not one at a time
 
-Every call is written to a hash-chained JSONL audit log aligned with the IETF Agent Audit Trail draft (genesis, per-call, and a session-close record with a session hash). `verify` re-walks the chain and reports the exact line where any edit, insertion, or deletion breaks it. `--export-aat` emits an EU AI Act Article 12-shaped event log. The chain makes tampering evident; it is not yet tamper-proof against a local attacker (signing and anchoring are on the roadmap).
+Every call is written to a hash-chained JSONL audit log aligned with the IETF Agent Audit Trail draft (genesis, per-call, and a session-close record with a session hash). `verify` re-walks the chain and reports the exact line where any edit, insertion, or deletion breaks it. `--export-aat` emits an EU AI Act Article 12-shaped event log.
+
+### Tamper-proofing the audit log: signing and anchoring
+
+A bare hash chain is tamper-evident, but a local attacker who rewrites the whole log from the start can keep it internally consistent. Two optional layers close that gap, both with Node's built-in crypto, no account, no network:
+
+```bash
+# sign every record with a local Ed25519 key (created on first use, kept 0600)
+npx @promptguardapp/mcp scan-mcp record ./trace.jsonl --log audit.jsonl --sign
+
+# verify the chain AND the signatures
+npx @promptguardapp/mcp scan-mcp verify audit.jsonl --key ~/.promptguard/signing-key.pub.pem
+
+# print an anchor for the chain head, record it somewhere external (a git commit)
+npx @promptguardapp/mcp scan-mcp anchor audit.jsonl
+# later, prove the log was not rewritten since you anchored it
+npx @promptguardapp/mcp scan-mcp verify audit.jsonl --anchor "pg-anchor:v1:..."
+```
+
+Three layers, honestly scoped:
+
+- **Hash chain** , catches accidental edits; `verify` breaks at the exact line.
+- **Ed25519 signing** , catches a rewrite by anyone *without* your key, even if they repair the chain. The log becomes non-repudiable.
+- **External anchoring** , catches a rewrite by someone *with* your key, because the head you recorded elsewhere (a git commit, a written-down token) no longer matches.
+
+Tamper-and-catch in practice: a signed log verifies as "chain intact; signatures valid; head matches the recorded anchor"; edit a single record and `verify` reports "invalid signature on record N" and exits non-zero.
 
 ### Optional: continuous MCP monitoring at session start (Claude Code)
 
