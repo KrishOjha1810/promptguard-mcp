@@ -117,9 +117,44 @@ Findings map to OWASP LLM Top 10 (LLM01, LLM03, LLM06) and OWASP Agentic Threats
 
 The [`bench/`](./bench) directory is a reproducible, contributable benchmark corpus (inspired by AgentDojo). `scan-mcp registry <manifest>` produces a [safety leaderboard](./REGISTRY.md) of scanned servers.
 
-### Optional: scan MCP config at session start (Claude Code)
+### Rug-pull monitor (always-on)
 
-Add a SessionStart hook to `~/.claude/settings.json` to scan your MCP config whenever a session begins:
+A one-time scan cannot catch a server that is benign when you approve it and turns malicious later. The monitor keeps a local, git-diffable record of every tool definition you have approved and re-checks on every session. It hashes each field of a tool definition separately, so it tells you exactly *what* changed, not just that something did, and it tiers severity so it does not cry wolf:
+
+- a changed description that trips a poisoning rule is a **critical rug-pull**
+- a benign description change is medium (review)
+- an input schema that gained fields is high (a new exfiltration channel)
+- a destructive/read-only annotation flip is high
+- a cosmetic or whitespace-only change is silent
+
+```bash
+npx @promptguardapp/mcp scan-mcp pin ./.mcp.json   # approve current definitions
+npx @promptguardapp/mcp scan-mcp ./.mcp.json       # later: surfaces only what changed
+```
+
+Wired into the SessionStart hook (below), this runs automatically: new tools are pinned silently on first sight, and only changes ever surface.
+
+### Flight recorder (runtime audit of tool calls)
+
+`scan-mcp` looks at definitions before you install. The flight recorder looks at what the agent *actually did* at runtime, by reading the OpenTelemetry tool-call spans your agent already emits (`gen_ai.tool.call.*`, MCP `tools/call`). It needs no proxy and no network; it just reads spans.
+
+```bash
+npx @promptguardapp/mcp scan-mcp record ./agent-trace.jsonl \
+  --log audit.jsonl --export-aat article12.json
+npx @promptguardapp/mcp scan-mcp verify audit.jsonl   # detect any tampering
+```
+
+It detects things a pre-install scan cannot see:
+
+- **secrets in tool arguments and results** (a tool that returns `~/.ssh/id_rsa` at runtime)
+- **suspicious exfiltration sinks** (ephemeral collectors, tunnels, raw IPs)
+- **cross-call toxic flows**: a sensitive read followed by an external send, which only shows up when you watch tool calls across the whole session, not one at a time
+
+Every call is written to a hash-chained JSONL audit log aligned with the IETF Agent Audit Trail draft (genesis, per-call, and a session-close record with a session hash). `verify` re-walks the chain and reports the exact line where any edit, insertion, or deletion breaks it. `--export-aat` emits an EU AI Act Article 12-shaped event log. The chain makes tampering evident; it is not yet tamper-proof against a local attacker (signing and anchoring are on the roadmap).
+
+### Optional: continuous MCP monitoring at session start (Claude Code)
+
+Add a SessionStart hook to `~/.claude/settings.json`. It statically scans your MCP config and runs the always-on rug-pull monitor every time a session begins:
 
 ```json
 {
