@@ -35,7 +35,7 @@ Notes and limits, stated plainly:
 
 - The flag itself is always stripped before anything is sent. A bare `pg ` with no prompt after it is treated as ordinary text, not a trigger.
 - The everyday `pg ` flag never reaches the lossy caveman level. Caveman is only ever triggered by the separate, explicit `pg! `, so you cannot mangle meaning by accident.
-- This only works in the extension, because the extension owns the input box and can swap its contents before the site sends it. The Claude Code prompt hook **cannot** do this; the hook API can only add context or block a prompt, never replace it.
+- Fully automatic send only works in the extension, because the extension owns the input box and can swap its contents before the site sends it. The Claude Code prompt hook supports the same `pg` / `pg!` flags, but because the hook API can only add context or block a prompt (never replace it), there it compresses, copies the short prompt to your clipboard, and blocks the long one for a one-keystroke paste.
 - Sending is done by clicking the site's send button (or, as a fallback, replaying Enter). The text-replacement and send-button heuristics are tested on Claude.ai and ChatGPT; if a site changes its DOM, the worst case is that your already-compressed text sits in the box and you press Enter once yourself.
 
 ## Build

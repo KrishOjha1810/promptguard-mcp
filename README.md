@@ -292,7 +292,7 @@ The model calls the tool and presents the result inline.
 
 ### Claude Code hook (scan every prompt automatically)
 
-If you use [Claude Code](https://docs.claude.com/en/docs/claude-code), install PromptGuard as a `UserPromptSubmit` hook so every prompt you type is scanned before it is sent. No tool call, no per-prompt action. Clean prompts pass through silently; if something is caught, you see an inline warning. The hook never blocks the prompt, it only warns, and you decide whether to retry redacted.
+If you use [Claude Code](https://docs.claude.com/en/docs/claude-code), install PromptGuard as a `UserPromptSubmit` hook so every prompt you type is scanned before it is sent. No tool call, no per-prompt action. Clean prompts pass through silently. By default, a critical secret (an API key, a card number) **blocks** the prompt so it never reaches the model, and you redact and resend; lower-severity PII only warns. You can make any tier blocking or non-blocking with the `PROMPTGUARD_BLOCK_ON_*` env vars (see [`src/hook.ts`](./src/hook.ts) for the full list). Note that the bypass env vars are session-wide once set: if you set `PROMPTGUARD_BLOCK_ON_SECRETS=false`, blocking stays off for the rest of that shell session.
 
 Edit `~/.claude/settings.json` and merge in:
 
@@ -316,6 +316,8 @@ Edit `~/.claude/settings.json` and merge in:
 
 The first prompt triggers `npx` to download and cache the package; after that, each prompt is scanned in roughly 50 ms.
 
+**Compress-and-send flags in Claude Code.** Start a prompt with `pg ` (or `pg! ` for the lossy caveman level) and the hook compresses it, copies the tightened version to your clipboard, and blocks the long one, so you clear the box, paste, and send the short prompt. This is a paste, not a true auto-send, because the Claude Code hook API can only add context or block a prompt, it cannot replace one in place. (The browser extension owns the input box and does the same thing fully automatically.) Disable with `PROMPTGUARD_COMPRESS_FLAGS=false`.
+
 ### Browser extension
 
 PromptGuard also ships as a browser extension that scans prompts inline on AI chat sites (Claude.ai, ChatGPT, Gemini, Perplexity, You.com, Mistral). It draws wavy underlines under detected secrets and PII and offers one-click redaction, cost estimation, and prompt optimization. Build it from source and load it unpacked:
@@ -327,7 +329,7 @@ npm run extension:build
 
 Then load the `extension/` directory as an unpacked extension in Chrome (`chrome://extensions`, Developer mode, Load unpacked). Full instructions and architecture are in [`extension/README.md`](./extension/README.md).
 
-**Compress-and-send flags.** In the extension, start a prompt with `pg ` and PromptGuard tightens it when you press Enter, then sends the shortened version, showing a receipt of what it sent and how many tokens you saved. `pg! ` uses the aggressive "caveman" level (lossy, can shift meaning), kept as a separate flag so it is never triggered by accident. This works in the extension because it owns the input box; the Claude Code hook cannot do it, since the hook API can only add context or block a prompt, never replace it.
+**Compress-and-send flags.** In the extension, start a prompt with `pg ` and PromptGuard tightens it when you press Enter, then sends the shortened version, showing a receipt of what it sent and how many tokens you saved. `pg! ` uses the aggressive "caveman" level (lossy, can shift meaning), kept as a separate flag so it is never triggered by accident. The extension can do this fully automatically because it owns the input box. The same flags also work in the Claude Code hook, with one unavoidable difference (see below): the hook compresses and copies the short prompt to your clipboard for a one-keystroke paste, because the hook API cannot replace a prompt in place.
 
 ### VS Code extension
 

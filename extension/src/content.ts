@@ -2,7 +2,7 @@ import { scanText } from "../../src/detectors/secrets.js";
 import type { Finding } from "../../src/types.js";
 import { PromptGuardOverlay } from "./overlay.js";
 import { UnderlineOverlay } from "./underline-overlay.js";
-import { compressForSend } from "./compress-flag.js";
+import { compressForSend } from "../../src/compress-flag.js";
 import { showCompressReceipt } from "./compress-toast.js";
 
 const VERSION = "0.0.9";

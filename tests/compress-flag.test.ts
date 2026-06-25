@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseCompressFlag,
   compressForSend,
-} from "../extension/src/compress-flag.js";
+} from "../src/compress-flag.js";
 
 describe("parseCompressFlag", () => {
   it("recognizes the safe `pg ` flag and strips it", () => {

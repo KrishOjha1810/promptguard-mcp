@@ -1,4 +1,4 @@
-import { compressPrompt, type CompressionLevel } from "../../src/compress.js";
+import { compressPrompt, type CompressionLevel } from "./compress.js";
 
 // A prompt that opts into compression starts with one of these flags. The flag
 // is stripped before anything is sent; the rest of the prompt is compressed and

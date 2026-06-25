@@ -1,4 +1,4 @@
-import type { CompressOutcome } from "./compress-flag.js";
+import type { CompressOutcome } from "../../src/compress-flag.js";
 
 // A small receipt that appears after PromptGuard tightens and sends a prompt.
 // Self-contained in its own shadow root so the host site's CSS can never touch
