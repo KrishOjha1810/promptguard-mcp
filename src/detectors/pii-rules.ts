@@ -19,6 +19,42 @@ export function luhnCheck(input: string): boolean {
   return sum % 10 === 0;
 }
 
+// A Luhn-valid digit run is not enough: ~10% of random numbers pass Luhn, so
+// long IDs (tweet/snowflake IDs, order numbers, block heights) get flagged as
+// "credit cards" constantly. A real PAN also has a recognized network length
+// AND a recognized issuer prefix (IIN). Gate on all three to kill the noise.
+export function isCreditCard(input: string): boolean {
+  const d = input.replace(/[\s-]/g, "");
+  if (!/^\d+$/.test(d)) return false;
+
+  const len = d.length;
+  // Real card lengths only. Excludes 17/18, which no major network issues.
+  if (![13, 14, 15, 16, 19].includes(len)) return false;
+  if (!luhnCheck(d)) return false;
+
+  const p2 = parseInt(d.slice(0, 2), 10);
+  const p3 = parseInt(d.slice(0, 3), 10);
+  const p4 = parseInt(d.slice(0, 4), 10);
+
+  const visa = d[0] === "4" && (len === 13 || len === 16 || len === 19);
+  const mastercard =
+    ((p2 >= 51 && p2 <= 55) || (p4 >= 2221 && p4 <= 2720)) && len === 16;
+  const amex = (d.startsWith("34") || d.startsWith("37")) && len === 15;
+  const discover =
+    (d.startsWith("6011") || p2 === 65 || (p3 >= 644 && p3 <= 649)) &&
+    (len === 16 || len === 19);
+  const diners =
+    ((p3 >= 300 && p3 <= 305) ||
+      d.startsWith("36") ||
+      d.startsWith("38") ||
+      d.startsWith("39")) &&
+    len === 14;
+  const jcb = p4 >= 3528 && p4 <= 3589 && len >= 16 && len <= 19;
+  const unionpay = d.startsWith("62") && len >= 16 && len <= 19;
+
+  return visa || mastercard || amex || discover || diners || jcb || unionpay;
+}
+
 // Verhoeff checksum algorithm. Used by Aadhaar numbers to detect typos.
 const VERHOEFF_D = [
   [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -78,8 +114,8 @@ export const PII_RULES: Rule[] = [
     severity: "critical",
     confidence: 0.9,
     explanation:
-      "Credit card number (Luhn-validated). Sharing card numbers in prompts violates PCI compliance and exposes the cardholder.",
-    validator: luhnCheck,
+      "Credit card number (Luhn-validated, recognized card network). Sharing card numbers in prompts violates PCI compliance and exposes the cardholder.",
+    validator: isCreditCard,
   },
 
   // --------------------------------------------------------------------

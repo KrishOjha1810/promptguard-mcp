@@ -30,11 +30,11 @@ AWS access key IDs, GitHub classic / fine-grained / OAuth tokens, OpenAI API key
 
 ### PII detection (10 patterns)
 
-- **Universal:** email addresses, credit card numbers (Luhn-validated).
+- **Universal:** email addresses, credit card numbers (card-network prefix + Luhn-validated).
 - **US:** phone numbers, Social Security Numbers.
 - **India:** mobile numbers, Aadhaar (Verhoeff checksum validated), PAN, GSTIN, UPI IDs, and IFSC codes.
 
-Validators cut false positives: a 16-digit number is only flagged as a card if it passes the Luhn check, and a 12-digit number is only flagged as Aadhaar if it passes the Verhoeff checksum.
+Validators cut false positives: a digit run is only flagged as a card if it is a real card length, starts with a known card-network prefix (Visa, Mastercard, Amex, Discover, Diners, JCB, UnionPay), and passes the Luhn check, so long numeric IDs (tweet IDs, order numbers, block heights) are not mistaken for cards. A 12-digit number is only flagged as Aadhaar if it passes the Verhoeff checksum.
 
 ### Token and cost estimation
 
