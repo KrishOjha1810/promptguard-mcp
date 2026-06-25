@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PromptGuard",
-  "version": "0.0.8",
-  "description": "Inline secret and PII safety for prompts on Claude.ai and ChatGPT.com. Runs entirely on your machine.",
+  "version": "0.0.9",
+  "description": "Inline secret and PII safety for prompts on Claude.ai and ChatGPT.com, plus flag-triggered prompt compression. Runs entirely on your machine.",
   "browser_specific_settings": {
     "gecko": {
       "id": "promptguard@promptguardapp.com",

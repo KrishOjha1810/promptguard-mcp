@@ -327,6 +327,8 @@ npm run extension:build
 
 Then load the `extension/` directory as an unpacked extension in Chrome (`chrome://extensions`, Developer mode, Load unpacked). Full instructions and architecture are in [`extension/README.md`](./extension/README.md).
 
+**Compress-and-send flags.** In the extension, start a prompt with `pg ` and PromptGuard tightens it when you press Enter, then sends the shortened version, showing a receipt of what it sent and how many tokens you saved. `pg! ` uses the aggressive "caveman" level (lossy, can shift meaning), kept as a separate flag so it is never triggered by accident. This works in the extension because it owns the input box; the Claude Code hook cannot do it, since the hook API can only add context or block a prompt, never replace it.
+
 ### VS Code extension
 
 The VS Code extension scans the active document (and re-scans on save), drawing squiggles under matches and listing them in the Problems panel. Build it from source:

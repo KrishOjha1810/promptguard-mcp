@@ -10,8 +10,33 @@
 - **Per-character wavy underlines** drawn directly under the matched characters in the prompt input itself (Grammarly-style)
 - **Popup with cost estimator** (~tokens and ~dollar estimate across Claude Opus / Sonnet / Haiku, GPT-4o, GPT-4o-mini)
 - **Optimize and Compress** actions in the popup that rewrite the prompt to be tighter, with Apply buttons that update the prompt in place
+- **Compress-and-send flags** that shorten a prompt at submit time and send the shortened version (see below)
 
 All analysis runs locally. The prompt text never leaves your machine through PromptGuard.
+
+## Compress-and-send flags
+
+Start a prompt with a flag and PromptGuard tightens it the moment you press Enter, then sends the shortened version instead of what you typed. A small receipt slides in (bottom-left) showing how many tokens you saved and exactly what was sent, with a toggle to compare against what you typed.
+
+| Flag | Level | What it does |
+|---|---|---|
+| `pg ` | medium (safe) | Strips filler, politeness, hedging, and meta-commentary. Meaning preserved on most prompts. |
+| `pg! ` | caveman (lossy) | Everything above, plus drops all articles (the/a/an) and more. Telegraphic and can shift meaning. Use when you are rate-limited, not for important work. |
+
+`promptguard ` and `prompt-guard ` are aliases for the safe `pg ` level.
+
+```
+You type:   pg Could you please write a function that validates the emails in this list
+Sent:       Write a function that validates the emails in this list
+Receipt:    ✓ Tightened & sent — saved 6 tokens (24%)
+```
+
+Notes and limits, stated plainly:
+
+- The flag itself is always stripped before anything is sent. A bare `pg ` with no prompt after it is treated as ordinary text, not a trigger.
+- The everyday `pg ` flag never reaches the lossy caveman level. Caveman is only ever triggered by the separate, explicit `pg! `, so you cannot mangle meaning by accident.
+- This only works in the extension, because the extension owns the input box and can swap its contents before the site sends it. The Claude Code prompt hook **cannot** do this; the hook API can only add context or block a prompt, never replace it.
+- Sending is done by clicking the site's send button (or, as a fallback, replaying Enter). The text-replacement and send-button heuristics are tested on Claude.ai and ChatGPT; if a site changes its DOM, the worst case is that your already-compressed text sits in the box and you press Enter once yourself.
 
 ## Build
 
@@ -65,10 +90,12 @@ extension/
 ├── manifest.json              MV3 manifest with Firefox compatibility block
 ├── popup.html                 popup markup
 ├── src/
-│   ├── content.ts             page-side: finds the input, scans, drives overlays
+│   ├── content.ts             page-side: finds the input, scans, drives overlays, compress-on-send
 │   ├── background.ts          service worker: lifecycle + message router
 │   ├── overlay.ts             bottom-right pill + findings panel (shadow DOM)
 │   ├── underline-overlay.ts   transparent overlay drawing wavy underlines
+│   ├── compress-flag.ts       parses the pg / pg! flags and produces the text to send
+│   ├── compress-toast.ts      bottom-left "tightened & sent" receipt (shadow DOM)
 │   └── popup.ts               popup behavior: cost, optimize, compress, apply
 ├── dist/                      build output (gitignored)
 ├── icons/                     reserved for v0.2.7 store listing
@@ -94,4 +121,5 @@ See `docs/10-v2-plan.md` for the full v0.2.x roadmap. Short version:
 | v0.2.4 | done | Popup with cost + optimize + compress |
 | v0.2.5 | done | Per-character wavy underlines on the input |
 | v0.2.6 | done | Firefox compatibility |
-| v0.2.7 | next | Chrome Web Store listing prep + submission |
+| v0.2.7 | done | Compress-and-send flags (`pg` / `pg!`) with receipt |
+| v0.2.8 | next | Chrome Web Store listing prep + submission |

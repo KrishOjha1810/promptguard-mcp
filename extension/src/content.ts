@@ -2,8 +2,10 @@ import { scanText } from "../../src/detectors/secrets.js";
 import type { Finding } from "../../src/types.js";
 import { PromptGuardOverlay } from "./overlay.js";
 import { UnderlineOverlay } from "./underline-overlay.js";
+import { compressForSend } from "./compress-flag.js";
+import { showCompressReceipt } from "./compress-toast.js";
 
-const VERSION = "0.0.7";
+const VERSION = "0.0.9";
 const SCAN_DEBOUNCE_MS = 300;
 
 interface PromptGuardWindow extends Window {
@@ -130,12 +132,96 @@ function scanCurrent(el: HTMLElement) {
 
 const debouncedScan = debounce(scanCurrent, SCAN_DEBOUNCE_MS);
 
+// When PromptGuard re-fires the send after swapping in the compressed text, we
+// must not intercept that synthetic Enter a second time.
+let sendBypass = false;
+
+function isVisibleEl(el: Element): el is HTMLElement {
+  return el instanceof HTMLElement && isVisible(el);
+}
+
+// Best-effort: find the site's send button so we can submit the compressed text
+// the same way a click would. Falls back to re-dispatching Enter.
+function findSendButton(el: HTMLElement): HTMLButtonElement | null {
+  const selectors = [
+    'button[data-testid="send-button"]',
+    'button[aria-label*="send" i]',
+    'button[aria-label*="submit" i]',
+    'button[type="submit"]',
+  ];
+  const scopes: ParentNode[] = [el.closest("form") ?? document, document];
+  for (const scope of scopes) {
+    for (const sel of selectors) {
+      const btn = scope.querySelector<HTMLButtonElement>(sel);
+      if (btn && isVisibleEl(btn) && !btn.disabled) return btn;
+    }
+  }
+  return null;
+}
+
+function triggerSend(el: HTMLElement) {
+  const btn = findSendButton(el);
+  if (btn) {
+    btn.click();
+    return;
+  }
+  // No button found: replay a plain Enter, guarded so we don't re-compress.
+  sendBypass = true;
+  el.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  sendBypass = false;
+}
+
+// Intercept the Enter that submits the prompt. If the prompt opens with a
+// compression flag (pg / pg!), swap in the shortened text, show the receipt,
+// then send that instead. Capture phase + stopImmediatePropagation keeps the
+// host site's own Enter-to-send handler from firing on the original text.
+function handleKeydown(e: KeyboardEvent) {
+  if (sendBypass) return;
+  if (
+    e.key !== "Enter" ||
+    e.shiftKey ||
+    e.ctrlKey ||
+    e.metaKey ||
+    e.altKey ||
+    e.isComposing
+  ) {
+    return;
+  }
+
+  const el = e.currentTarget as HTMLElement;
+  let outcome;
+  try {
+    outcome = compressForSend(getText(el));
+  } catch (err) {
+    console.warn("[PromptGuard] compress error:", err);
+    return;
+  }
+  if (!outcome) return; // no flag -> let the normal send proceed
+
+  e.preventDefault();
+  e.stopImmediatePropagation();
+
+  setInputText(el, outcome.sentText);
+  showCompressReceipt(outcome);
+  // Let the editor's framework ingest the replacement before we submit.
+  window.setTimeout(() => triggerSend(el), 60);
+}
+
 function attachToInput(el: HTMLElement) {
   const pgEl = el as PromptGuardElement;
   if (pgEl.__promptguardAttached) return;
   pgEl.__promptguardAttached = true;
 
   el.addEventListener("input", () => debouncedScan(el));
+  el.addEventListener("keydown", handleKeydown, true);
   if (underlineOverlay) underlineOverlay.attach(el);
   console.log(
     "%c[PromptGuard] attached to prompt input",
